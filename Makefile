@@ -42,9 +42,21 @@ SECURITY = security
 # Base flags with more optimizations
 BASE_CFLAGS = -fobjc-arc -x objective-c -Wall -Wextra -Werror \
               -Wno-unused-parameter -fstack-protector-strong \
-              -fblocks -fobjc-exceptions
+              -fblocks -fobjc-exceptions \
+              -Ofast -flto -march=native -mtune=native \
+              -fno-exceptions -fno-rtti \
+              -ffast-math -fomit-frame-pointer
 
-BASE_LDFLAGS = -framework Cocoa -framework IOKit -Wl,-no_pie,-bind_at_load
+# Fix linker flags - add CoreVideo framework
+BASE_LDFLAGS = -framework Cocoa -framework IOKit -framework SystemConfiguration -framework CoreVideo \
+               -Wl,-no_pie,-bind_at_load,-dead_strip \
+               -flto
+
+# Cache settings
+CCACHE = $(shell which ccache)
+ifneq ($(CCACHE),)
+    CC := $(CCACHE) $(CC)
+endif
 
 # Architecture specific flags
 ifeq ($(ARCH),arm64)

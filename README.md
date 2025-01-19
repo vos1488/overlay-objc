@@ -1,210 +1,219 @@
 # Overlay
 
-A minimal, unobtrusive system overlay for macOS that displays time, battery status, and IP addresses.
+Минималистичный системный оверлей для macOS, отображающий время, статус батареи, IP-адреса и календарь.
 
-## Features
+## Основные функции
 
-- Transparent overlay window that stays on top of all windows
-- Real-time system information:
-  - Current time
-  - Battery status and level with visual indicator
-  - Local IP address
-  - Public IP address
-- Minimal UI with close button
-- Ignores mouse events except for the close button area
-- Supports all displays and spaces
-- Built with native macOS frameworks
+- Прозрачное окно поверх всех окон
+- Информация в реальном времени:
+  - Текущее время (12/24 часовой формат)
+  - Статус и уровень заряда батареи с визуальным индикатором
+  - Локальный IP адрес
+  - Публичный IP адрес
+  - Статус сетевого подключения
+  - Встроенный календарь с праздниками
+- Минималистичный интерфейс с кнопками управления
+- Поддержка всех дисплеев и рабочих пространств
+- Анимированное отображение календаря
 
-## System Requirements
+## Системные требования
 
-- macOS 10.10 or later
-- 64-bit processor (Intel or Apple Silicon)
-- 50MB free disk space
-- Basic network connectivity for public IP detection
-- Administrator privileges for installation
-- No additional dependencies required
+- macOS 10.10 или новее
+- 64-битный процессор (Intel или Apple Silicon)
+- 50MB свободного места
+- Базовое сетевое подключение
+- Права администратора для установки
 
-## Installation
+## Установка
 
-### From Release
-1. Download the latest release from the releases page
-2. Extract the ZIP archive
-3. Move `Overlay.app` to your Applications folder
+### Из релиза
+1. Скачайте последний релиз
+2. Распакуйте архив
+3. Переместите Overlay.app в папку Applications
 
-### Building from Source
-1. Clone the repository:
+### Сборка из исходников
+1. Клонируйте репозиторий:
 ```bash
 git clone https://github.com/vos9/overlay-objc.git
 cd overlay-objc
 ```
 
-2. Build using make:
+2. Сборка с использованием make:
 ```bash
 make release
 ```
 
-3. The application will be built in `build/release/Overlay.app`
+3. Приложение будет собрано в `build/release/Overlay.app`
 
-## Technical Details
+## Управление
 
-### Architecture
-- Written in Objective-C using Cocoa framework
-- Uses IOKit for battery monitoring
-- Network interfaces monitoring for IP detection
-- Event-driven updates with efficient timers
-- Minimal CPU and memory footprint
+### Клавиатурные сокращения
+- ⌘Q - Выход из приложения
+- ⌘H - Скрыть оверлей
+- ⌘M - Переместить на следующий дисплей
+- ⌘R - Обновить все данные
+- ESC - Выход из полноэкранного режима
 
-### Performance
-- Lightweight window management
-- Efficient drawing using NSBezierPath
-- Optimized battery status monitoring
-- Async network operations for IP detection
-- Memory-efficient string handling
+### Кнопки интерфейса
+- × - Закрыть приложение
+- C - Показать/скрыть календарь
 
-### Memory Management
-- Efficient autorelease pool usage
-- Minimal heap allocations
-- Automatic memory cleanup
-- No memory leaks
-- Optimized string handling
+### Функции календаря
+- Отображение текущего месяца
+- Подсветка текущей даты
+- Отображение праздников
+- Выбор даты кликом
 
-### Network Usage
-- Local IP detection: read-only network interface access
-- Public IP detection: single HTTP request every 5 minutes
-- Fallback mechanism for offline operation
-- No background network activity
-- Minimal bandwidth usage (<1KB per request)
+## Технические детали
 
-### Power Management
-- Low CPU impact (<0.1% in idle state)
-- Efficient battery monitoring
-- Sleep/wake handling
-- Power event notifications
-- Automatic updates pausing during battery saving mode
+### Архитектура
+- Написано на Objective-C с использованием Cocoa framework
+- Использует IOKit для мониторинга батареи
+- Мониторинг сетевых интерфейсов для определения IP
+- Обновления на основе событий с эффективными таймерами
+- Минимальное использование CPU и памяти
 
-### Security
-- No data collection or storage
-- Local-only operation
-- No network access except for public IP detection
-- No background processes
-- Sandboxed application
+### Производительность
+- Легковесное управление окнами
+- Эффективное рисование с использованием NSBezierPath
+- Оптимизированный мониторинг состояния батареи
+- Асинхронные сетевые операции для определения IP
+- Эффективное использование памяти для строк
 
-## Keyboard Shortcuts
+### Управление памятью
+- Эффективное использование autorelease pool
+- Минимальные выделения в куче
+- Автоматическая очистка памяти
+- Отсутствие утечек памяти
+- Оптимизированное управление строками
 
-| Shortcut | Action |
-|----------|--------|
-| ⌘Q | Quit application |
-| ⌘H | Hide overlay |
-| ⌘M | Move to next display |
-| ⌘R | Refresh all data |
-| esc | Exit fullscreen |
+### Использование сети
+- Определение локального IP: доступ только для чтения к сетевому интерфейсу
+- Определение публичного IP: один HTTP запрос каждые 5 минут
+- Механизм резервного копирования для работы в автономном режиме
+- Отсутствие фоновой сетевой активности
+- Минимальное использование пропускной способности (<1KB на запрос)
 
-## Usage
+### Управление питанием
+- Низкое воздействие на CPU (<0.1% в режиме ожидания)
+- Эффективный мониторинг батареи
+- Обработка событий сна/пробуждения
+- Уведомления о событиях питания
+- Автоматическая пауза обновлений в режиме экономии заряда
 
-1. Launch the application
-2. The overlay will appear on top of all windows
-3. The overlay ignores mouse clicks except for the close button
-4. To quit, click the close button (×) in the top-right corner
+### Безопасность
+- Отсутствие сбора или хранения данных
+- Локальная работа
+- Отсутствие сетевого доступа, кроме определения публичного IP
+- Отсутствие фоновых процессов
+- Песочница приложения
 
-## Development
+## Использование
 
-### Build Configurations
+1. Запустите приложение
+2. Оверлей появится поверх всех окон
+3. Оверлей игнорирует щелчки мыши, кроме кнопки закрытия
+4. Для выхода нажмите кнопку закрытия (×) в правом верхнем углу
 
-- Release build: `make release`
-- Debug build: `make debug`
-- Profile build: `make profile`
+## Разработка
 
-### Additional Commands
+### Конфигурации сборки
 
-- Run static analyzer: `make analyze`
-- Generate debug symbols: `make dsym`
-- Create distribution package: `make dist`
-- Clean build files: `make clean`
-- Show all commands: `make help`
+- Релизная сборка: `make release`
+- Отладочная сборка: `make debug`
+- Профилирующая сборка: `make profile`
 
-### Build Options
+### Дополнительные команды
+
+- Запуск статического анализатора: `make analyze`
+- Генерация отладочных символов: `make dsym`
+- Создание дистрибутивного пакета: `make dist`
+- Очистка файлов сборки: `make clean`
+- Показать все команды: `make help`
+
+### Опции сборки
 
 ```bash
-# Build Types
-make release    # Optimized build with -O3
-make debug      # Debug build with sanitizers
-make profile    # Build with profiling support
+# Типы сборки
+make release    # Оптимизированная сборка с -O3
+make debug      # Отладочная сборка с санитайзерами
+make profile    # Сборка с поддержкой профилирования
 
-# Development Tools
-make analyze    # Run static code analyzer
-make dsym       # Generate debug symbols
-make sign       # Sign the application
+# Инструменты разработки
+make analyze    # Запуск статического анализатора кода
+make dsym       # Генерация отладочных символов
+make sign       # Подпись приложения
 
-# Distribution
-make dist       # Create distribution package
-make bundle     # Create application bundle
-make install    # Install to Applications folder
+# Дистрибуция
+make dist       # Создание дистрибутивного пакета
+make bundle     # Создание пакета приложения
+make install    # Установка в папку Applications
 ```
 
-### Project Structure
+### Структура проекта
 
 ```
 overlay-objc/
-├── OverlayView.h/m       # Main view implementation
-├── OverlayWindowController.h/m # Window management
-├── main.m               # Application entry point
-├── Makefile            # Build system
-└── README.md           # Documentation
+├── OverlayView.h/m       # Основная реализация представления
+├── OverlayWindowController.h/m # Управление окнами
+├── main.m               # Точка входа в приложение
+├── Makefile            # Система сборки
+└── README.md           # Документация
 ```
 
-### Performance Metrics
+### Метрики производительности
 
-| Metric | Value |
+| Метрика | Значение |
 |--------|--------|
-| CPU Usage (idle) | <0.1% |
-| Memory Usage | ~10MB |
-| Launch Time | <100ms |
-| Battery Impact | Negligible |
-| Network Usage | <1KB/5min |
+| Использование CPU (в режиме ожидания) | <0.1% |
+| Использование памяти | ~10MB |
+| Время запуска | <100ms |
+| Влияние на батарею | Незначительное |
+| Использование сети | <1KB/5мин |
 
-### Known Limitations
+### Известные ограничения
 
-- No support for macOS versions below 10.10
-- Limited to system default font
-- Single instance only
-- No configuration UI (planned)
-- Public IP detection requires internet connection
+- Нет поддержки версий macOS ниже 10.10
+- Ограничено системным шрифтом по умолчанию
+- Только один экземпляр
+- Нет интерфейса конфигурации (планируется)
+- Определение публичного IP требует интернет-соединения
 
-### Contributing
+### Вклад
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Форкните репозиторий
+2. Создайте ветку для вашей функции (`git checkout -b feature/amazing-feature`)
+3. Зафиксируйте ваши изменения (`git commit -m 'Add amazing feature'`)
+4. Отправьте ветку (`git push origin feature/amazing-feature`)
+5. Откройте Pull Request
 
-## Troubleshooting
+## Устранение неполадок
 
-### Common Issues
+### Общие проблемы
 
-1. Window not appearing
-   - Check if System Integrity Protection allows window overlays
-   - Verify accessibility permissions
+1. Окно не появляется
+   - Проверьте, разрешает ли System Integrity Protection наложение окон
+   - Проверьте разрешения на доступность
 
-2. IP addresses not showing
-   - Check network connection
-   - Verify firewall settings
-   - Wait for async update (up to 5 seconds)
+2. IP-адреса не отображаются
+   - Проверьте сетевое подключение
+   - Проверьте настройки брандмауэра
+   - Подождите асинхронного обновления (до 5 секунд)
 
-3. Build issues
-   - Ensure Xcode command line tools are installed
-   - Check macOS version compatibility
-   - Verify all dependencies are met
+3. Проблемы со сборкой
+   - Убедитесь, что установлены инструменты командной строки Xcode
+   - Проверьте совместимость версии macOS
+   - Убедитесь, что все зависимости выполнены
 
-## License
+## Лицензия
 
 Copyright © 2025 vos9.su. All rights reserved.
 
-## Author
+## Автор
 
-Created by vos9.su
+Создано vos9.su
 
-## Version History
+## История версий
 
-- ALPHA_1.0.1 - Initial release with basic functionality
-- Future releases planned with additional features
+- ALPHA_1.0.1 - Первый выпуск с базовой функциональностью
+- Планируются будущие выпуски с дополнительными функциями
