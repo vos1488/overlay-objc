@@ -4,6 +4,13 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #import <SystemConfiguration/SystemConfiguration.h>
+#import <mach/mach.h>
+#import <IOKit/pwr_mgt/IOPMLib.h>
+#import <IOKit/ps/IOPowerSources.h>
+#import <IOKit/IOKitLib.h>
+#import <mach/mach_host.h>
+#import <mach/processor_info.h>
+#import <mach/mach_time.h>
 
 // Add callback declaration at the top of the file
 static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink, 
@@ -18,6 +25,36 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
     });
     return kCVReturnSuccess;
 }
+
+#define SMC_KEY_CPU_TEMP "TC0P"
+#define SMC_KEY_FAN_SPEED "F0Ac"
+
+typedef struct {
+    char major;
+    char minor;
+    char build;
+    char reserved[1];
+    UInt16 release;
+} SMCKeyData_vers_t;
+
+typedef struct {
+    UInt32 key;
+    SMCKeyData_vers_t vers;
+    UInt8 length;
+    UInt8 dataType[4];
+    UInt32 dataSize;
+    UInt8 data[32];
+} SMCKeyData_t;
+
+typedef struct {
+    host_t host;
+    processor_info_array_t processor_info;
+    mach_msg_type_number_t processor_count;
+    processor_cpu_load_info_data_t prev_load;
+    uint64_t prev_time;
+} CPUInfo;
+
+static CPUInfo cpuInfo = {0};
 
 @implementation OverlayView
 
@@ -129,8 +166,114 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
             owner:self
             userInfo:nil];
         [self addTrackingArea:calendarButtonTracking];
+        
+        // Initialize power monitoring properties
+        self.cpuUsage = 0.0;
+        self.powerConsumption = 0.0;
+        self.powerUsageStatus = @"";
+        
+        // Start power monitoring
+        [self startPowerMonitoring];
+        
+        [self setupControlButtons];
+        self.isDarkTheme = YES; // По умолчанию тёмная тема
     }
     return self;
+}
+
+- (void)setupControlButtons {
+    NSRect frame = self.frame;
+    CGFloat buttonSize = 20;
+    CGFloat spacing = 25;
+    CGFloat topMargin = frame.size.height - 50;
+    
+    // Сдвигаем все кнопки правее, начиная с правого края
+    CGFloat rightEdge = frame.size.width - 30;
+    
+    // Close button (самая правая)
+    self.closeButton.frame = NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize);
+    
+    // Settings button
+    rightEdge -= spacing;
+    self.settingsButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
+                                              title:@"S"
+                                            action:@selector(handleSettingsButton:)];
+    
+    // Refresh button
+    rightEdge -= spacing;
+    self.refreshButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
+                                             title:@"R"
+                                           action:@selector(handleRefreshButton:)];
+    
+    // Time format button
+    rightEdge -= spacing;
+    self.timeFormatButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
+                                                title:@"T"
+                                              action:@selector(handleTimeFormatButton:)];
+    
+    // Calendar button
+    rightEdge -= spacing;
+    self.toggleCalendarButton.frame = NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize);
+    
+    // Theme button
+    rightEdge -= spacing;
+    self.themeButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
+                                           title:@"🌙"
+                                         action:@selector(handleThemeButton:)];
+    
+    // Add tracking areas for all buttons after creating them
+    [self updateTrackingAreas];
+}
+
+- (NSButton *)createButtonWithFrame:(NSRect)frame title:(NSString *)title action:(SEL)action {
+    NSButton *button = [[NSButton alloc] initWithFrame:frame];
+    [button setBezelStyle:NSBezelStyleCircular];
+    [button setButtonType:NSButtonTypeMomentaryLight];
+    [button setBordered:YES];
+    [button setTitle:title];
+    [button setFont:[NSFont systemFontOfSize:12]];
+    [button setTarget:self];
+    [button setAction:action];
+    [button setWantsLayer:YES];
+    button.layer.backgroundColor = [[NSColor colorWithCalibratedWhite:0.0 alpha:0.3] CGColor];
+    [self addSubview:button];
+    
+    return button;
+}
+
+- (void)handleTimeFormatButton:(id)sender {
+    [self toggleTimeFormat];
+}
+
+- (void)handleRefreshButton:(id)sender {
+    [self updateTime];
+    [self updateBatteryInfo];
+    [self updateIPAddresses];
+    [self updateNetworkStatus];
+    [self updatePowerConsumption];
+}
+
+- (void)handleSettingsButton:(id)sender {
+    // Create and show settings panel
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Настройки";
+    alert.informativeText = @"Настройки оверлея";
+    
+    [alert addButtonWithTitle:@"Сбросить"];
+    [alert addButtonWithTitle:@"Закрыть"];
+    
+    NSTextField *opacityField = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 200, 24)];
+    opacityField.doubleValue = self.opacity * 100;
+    opacityField.placeholderString = @"Прозрачность (0-100%)";
+    alert.accessoryView = opacityField;
+    
+    NSInteger response = [alert runModal];
+    if (response == NSAlertFirstButtonReturn) {
+        [self resetToDefaults];
+    } else {
+        self.opacity = opacityField.doubleValue / 100.0;
+        [self setNeedsDisplay:YES];
+    }
 }
 
 - (void)startTimer {
@@ -431,7 +574,6 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
     NSPoint publicIPPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 95);
     [publicIPText drawAtPoint:publicIPPoint withAttributes:attrs];
     
-    // Draw network status (make sure it's more visible)
     [attrs setObject:statusFont forKey:NSFontAttributeName];
     [attrs setObject:[NSColor whiteColor] forKey:NSForegroundColorAttributeName];
     
@@ -439,14 +581,16 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
     NSPoint networkPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 115);
     [networkText drawAtPoint:networkPoint withAttributes:attrs];
     
-    // Draw author info
+    NSString *powerText = [NSString stringWithFormat:@"Энергопотребление: %@", self.powerUsageStatus];
+    NSPoint powerPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 135);
+    [powerText drawAtPoint:powerPoint withAttributes:attrs];
+    
     NSString *authorText = @"© vos9.su";
     NSPoint authorPoint = NSMakePoint(NSWidth(self.bounds) - 80, 10);
     [attrs setObject:[NSFont fontWithName:@"Helvetica" size:12] forKey:NSFontAttributeName];
     [attrs setObject:[NSColor colorWithCalibratedWhite:1.0 alpha:0.5] forKey:NSForegroundColorAttributeName];
     [authorText drawAtPoint:authorPoint withAttributes:attrs];
     
-    // Draw calendar if enabled
     if (self.showCalendar) {
         [self drawCalendar];
     }
@@ -456,59 +600,74 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 }
 
 - (void)drawCalendar {
-    // Calendar frame parameters
     CGFloat calendarWidth = 220;
-    CGFloat calendarHeight = 160;
+    CGFloat calendarHeight = 200; // Увеличиваем высоту
     CGFloat xOffset = 15;
     CGFloat yOffset = 40;
     
-    // Calendar content setup
     NSDateComponents *comp = [[NSDateComponents alloc] init];
     comp.year = self.selectedYear;
     comp.month = self.selectedMonth;
     comp.day = 1;
     
     NSDate *firstDay = [self.calendar dateFromComponents:comp];
-    
-    // Calendar background with gradient
     NSRect calendarFrame = NSMakeRect(xOffset, yOffset, calendarWidth, calendarHeight);
+
+    // Основной фон календаря (темный с градиентом)
+    NSGradient *backgroundGradient;
+    if (self.isDarkTheme) {
+        backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithRed:0.1 green:0.1 blue:0.15 alpha:0.95]
+                                                          endingColor:[NSColor colorWithRed:0.15 green:0.15 blue:0.2 alpha:0.95]];
+    } else {
+        backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithRed:0.95 green:0.95 blue:1.0 alpha:0.95]
+                                                          endingColor:[NSColor colorWithRed:0.9 green:0.9 blue:0.95 alpha:0.95]];
+    }
     
-    // Create gradient background
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedWhite:0.0 alpha:0.4]
-                                                                  endingColor:[NSColor colorWithCalibratedWhite:0.0 alpha:0.3]];
-    
-    NSBezierPath *background = [NSBezierPath bezierPathWithRoundedRect:calendarFrame xRadius:12 yRadius:12];
+    NSBezierPath *background = [NSBezierPath bezierPathWithRoundedRect:calendarFrame xRadius:15 yRadius:15];
     [backgroundGradient drawInBezierPath:background angle:90];
     
-    // Draw glass effect
-    NSColor *glassColor = [NSColor colorWithCalibratedWhite:1.0 alpha:0.1];
-    NSRect glassRect = NSMakeRect(xOffset, yOffset + calendarHeight/2, calendarWidth, calendarHeight/2);
-    NSGradient *glassGradient = [[NSGradient alloc] initWithStartingColor:glassColor
-                                                            endingColor:[NSColor clearColor]];
-    [glassGradient drawInRect:glassRect angle:-90];
+    // Эффект внутреннего свечения
+    NSColor *glowColor = self.isDarkTheme ? 
+        [NSColor colorWithRed:0.3 green:0.3 blue:0.4 alpha:0.1] :
+        [NSColor colorWithRed:0.7 green:0.7 blue:0.8 alpha:0.1];
+    NSRect glowRect = NSInsetRect(calendarFrame, -2, -2);
+    NSBezierPath *glowPath = [NSBezierPath bezierPathWithRoundedRect:glowRect xRadius:15 yRadius:15];
+    [glowColor set];
+    [glowPath setLineWidth:2.0];
+    [glowPath stroke];
     
-    // Draw month header with gradient
+    // Заголовок календаря
     NSRect headerRect = NSMakeRect(xOffset, yOffset + calendarHeight - 40, calendarWidth, 35);
-    NSGradient *headerGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedWhite:1.0 alpha:0.15]
-                                                              endingColor:[NSColor colorWithCalibratedWhite:1.0 alpha:0.05]];
-    NSBezierPath *headerPath = [NSBezierPath bezierPathWithRoundedRect:headerRect 
-                                                            xRadius:10 
-                                                            yRadius:10];
+    NSGradient *headerGradient;
+    if (self.isDarkTheme) {
+        headerGradient = [[NSGradient alloc] initWithColors:@[
+            [NSColor colorWithRed:0.2 green:0.2 blue:0.25 alpha:0.9],
+            [NSColor colorWithRed:0.15 green:0.15 blue:0.2 alpha:0.9]
+        ]];
+    } else {
+        headerGradient = [[NSGradient alloc] initWithColors:@[
+            [NSColor colorWithRed:0.85 green:0.85 blue:0.9 alpha:0.9],
+            [NSColor colorWithRed:0.8 green:0.8 blue:0.85 alpha:0.9]
+        ]];
+    }
+    NSBezierPath *headerPath = [NSBezierPath bezierPathWithRoundedRect:headerRect xRadius:12 yRadius:12];
     [headerGradient drawInBezierPath:headerPath angle:90];
     
-    // Month and year text with shadow
+    // Форматирование и отображение месяца/года
     NSDateFormatter *monthFormatter = [[NSDateFormatter alloc] init];
     monthFormatter.dateFormat = @"MMMM yyyy";
-    NSString *monthYear = [monthFormatter stringFromDate:firstDay];
+    NSString *monthYear = [[monthFormatter stringFromDate:firstDay] capitalizedString];
     
     NSShadow *textShadow = [[NSShadow alloc] init];
-    textShadow.shadowColor = [NSColor blackColor];
+    textShadow.shadowColor = [NSColor colorWithWhite:0.0 alpha:0.5];
     textShadow.shadowOffset = NSMakeSize(0, -1);
     textShadow.shadowBlurRadius = 2;
     
     NSDictionary *headerAttrs = @{
         NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
-        NSForegroundColorAttributeName: [NSColor whiteColor],
+        NSForegroundColorAttributeName: self.isDarkTheme ? 
+            [NSColor colorWithRed:0.9 green:0.9 blue:1.0 alpha:1.0] :
+            [NSColor colorWithRed:0.2 green:0.2 blue:0.3 alpha:1.0],
         NSShadowAttributeName: textShadow
     };
     
@@ -516,85 +675,118 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
     NSPoint monthPoint = NSMakePoint(xOffset + (calendarWidth - monthSize.width) / 2,
                                    yOffset + calendarHeight - 32);
     [monthYear drawAtPoint:monthPoint withAttributes:headerAttrs];
-    
-    // Draw rest of calendar content
-    NSRange daysRange = [self.calendar rangeOfUnit:NSCalendarUnitDay
-                                          inUnit:NSCalendarUnitMonth
-                                         forDate:firstDay];
-    
-    NSInteger totalDays = (NSInteger)daysRange.length;
-    NSInteger currentDay = 1;
-    NSArray *weekDays = @[@"Пн", @"Вт", @"Ср", @"Чт", @"Пт", @"Сб", @"Вс"];
-    
-    // Draw weekday headers
+
+    // Дни недели
+    NSArray *weekDays = @[@"ПН", @"ВТ", @"СР", @"ЧТ", @"ПТ", @"СБ", @"ВС"];
     CGFloat dayWidth = calendarWidth / 7;
-    CGFloat dayHeight = 25;
+    CGFloat dayHeight = 28; // Увеличиваем высоту ячейки
     
-    NSDictionary *dayAttrs = @{
-        NSFontAttributeName: [NSFont systemFontOfSize:12],
-        NSForegroundColorAttributeName: [NSColor whiteColor]
+    NSDictionary *weekdayAttrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:11],
+        NSForegroundColorAttributeName: self.isDarkTheme ?
+            [NSColor colorWithRed:0.6 green:0.6 blue:0.7 alpha:1.0] :
+            [NSColor colorWithRed:0.4 green:0.4 blue:0.5 alpha:1.0]
     };
     
     for (NSInteger i = 0; i < 7; i++) {
         NSString *dayName = weekDays[i];
-        NSPoint dayPoint = NSMakePoint(xOffset + i * dayWidth, yOffset + calendarHeight - 50);
-        [dayName drawAtPoint:dayPoint withAttributes:dayAttrs];
+        NSPoint dayPoint = NSMakePoint(xOffset + i * dayWidth + (dayWidth - [dayName sizeWithAttributes:weekdayAttrs].width) / 2,
+                                     yOffset + calendarHeight - 60);
+        [dayName drawAtPoint:dayPoint withAttributes:weekdayAttrs];
     }
-    
-    // Draw calendar days
+
+    // Числа месяца
+    NSRange daysRange = [self.calendar rangeOfUnit:NSCalendarUnitDay inUnit:NSCalendarUnitMonth forDate:firstDay];
+    NSInteger totalDays = (NSInteger)daysRange.length; // Явное приведение типа
     NSInteger weekday = [self.calendar component:NSCalendarUnitWeekday fromDate:firstDay];
     NSInteger adjustedWeekday = (weekday + 5) % 7 + 1;
     NSInteger row = 0;
+    NSInteger currentDay = 1;
     
-    while (currentDay <= totalDays) {
-        for (NSInteger col = 0; col < 7 && currentDay <= totalDays; col++) {
+    // Добавляем объявление todayComponents
+    NSDateComponents *todayComponents = [self.calendar components:(NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay)
+                                                     fromDate:[NSDate date]];
+    
+    while (currentDay <= totalDays) { // Используем totalDays вместо daysRange.length
+        for (NSInteger col = 0; col < 7 && currentDay <= totalDays; col++) { // Используем totalDays
             if (row == 0 && col < adjustedWeekday - 1) {
                 continue;
             }
             
             NSString *dayStr = [NSString stringWithFormat:@"%ld", (long)currentDay];
-            NSPoint dayPoint = NSMakePoint(xOffset + col * dayWidth,
-                                         yOffset + calendarHeight - 75 - row * dayHeight);
+            CGFloat x = xOffset + col * dayWidth;
+            CGFloat y = yOffset + calendarHeight - 85 - row * dayHeight;
+            NSRect dayRect = NSMakeRect(x, y, dayWidth, dayHeight);
             
+            // Определяем стиль для текущего дня
+            BOOL isToday = (todayComponents.year == self.selectedYear &&
+                           todayComponents.month == self.selectedMonth &&
+                           todayComponents.day == currentDay);
+            
+            BOOL isSelected = (currentDay == self.selectedDay);
+            
+            if (isToday) {
+                // Фон для текущего дня
+                NSBezierPath *todayPath = [NSBezierPath bezierPathWithRoundedRect:
+                                         NSInsetRect(dayRect, 2, 2) xRadius:8 yRadius:8];
+                [[NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:0.3] set];
+                [todayPath fill];
+            } else if (isSelected) {
+                // Фон для выбранного дня
+                NSBezierPath *selectedPath = [NSBezierPath bezierPathWithRoundedRect:
+                                            NSInsetRect(dayRect, 2, 2) xRadius:8 yRadius:8];
+                [[NSColor colorWithRed:0.8 green:0.4 blue:0.0 alpha:0.3] set];
+                [selectedPath fill];
+            }
+            
+            // Проверяем, является ли день праздником
             NSString *dateKey = [NSString stringWithFormat:@"%02ld-%02ld",
                                (long)self.selectedMonth, (long)currentDay];
+            BOOL isHoliday = (self.holidays[dateKey] != nil);
             
-            NSDateComponents *todayComponents = [self.calendar components:(NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay)
-                                                                fromDate:[NSDate date]];
-            if (todayComponents.year == self.selectedYear &&
-                todayComponents.month == self.selectedMonth &&
-                todayComponents.day == currentDay) {
-                [self.todayColor set];
-                NSRectFill(NSMakeRect(dayPoint.x, dayPoint.y, dayWidth, dayHeight));
-            }
-            
-            if (self.holidays[dateKey]) {
-                // Holiday styling
-                NSDictionary *holidayAttrs = @{
-                    NSFontAttributeName: [NSFont boldSystemFontOfSize:12],
-                    NSForegroundColorAttributeName: [NSColor redColor]
+            NSDictionary *dayAttrs;
+            if (isHoliday) {
+                dayAttrs = @{
+                    NSFontAttributeName: [NSFont boldSystemFontOfSize:13],
+                    NSForegroundColorAttributeName: [NSColor colorWithRed:1.0 green:0.4 blue:0.4 alpha:1.0]
                 };
-                [dayStr drawAtPoint:dayPoint withAttributes:holidayAttrs];
+            } else if (isToday) {
+                dayAttrs = @{
+                    NSFontAttributeName: [NSFont boldSystemFontOfSize:13],
+                    NSForegroundColorAttributeName: self.isDarkTheme ?
+                        [NSColor colorWithRed:0.4 green:0.8 blue:1.0 alpha:1.0] :
+                        [NSColor colorWithRed:0.0 green:0.5 blue:1.0 alpha:1.0]
+                };
             } else {
-                [dayStr drawAtPoint:dayPoint withAttributes:dayAttrs];
+                dayAttrs = @{
+                    NSFontAttributeName: [NSFont systemFontOfSize:13],
+                    NSForegroundColorAttributeName: self.isDarkTheme ?
+                        [NSColor colorWithWhite:0.9 alpha:1.0] :
+                        [NSColor colorWithWhite:0.2 alpha:1.0]
+                };
             }
+            
+            NSSize daySize = [dayStr sizeWithAttributes:dayAttrs];
+            NSPoint dayPoint = NSMakePoint(x + (dayWidth - daySize.width) / 2,
+                                         y + (dayHeight - daySize.height) / 2);
+            [dayStr drawAtPoint:dayPoint withAttributes:dayAttrs];
             
             currentDay++;
         }
         row++;
     }
     
-    // Apply animation effects
-    CGFloat scale = 0.8 + (0.2 * self.animationProgress);
-    CGFloat alpha = self.animationProgress;
-    
-    NSShadow *animShadow = [[NSShadow alloc] init];
-    animShadow.shadowColor = [NSColor colorWithWhite:0.0 alpha:0.5 * alpha];
-    animShadow.shadowOffset = NSMakeSize(0, -2 * scale);
-    animShadow.shadowBlurRadius = 4.0 * scale;
-    [animShadow set];
-    
-    // ...rest of existing code...
+    // Применяем анимацию
+    if (self.isAnimating) {
+        CGFloat scale = 0.8 + (0.2 * self.animationProgress);
+        CGFloat alpha = self.animationProgress;
+        
+        NSShadow *animShadow = [[NSShadow alloc] init];
+        animShadow.shadowColor = [NSColor colorWithWhite:0.0 alpha:0.3 * alpha];
+        animShadow.shadowOffset = NSMakeSize(0, -3 * scale);
+        animShadow.shadowBlurRadius = 6.0 * scale;
+        [animShadow set];
+    }
 }
 
 - (NSInteger)daysInCurrentMonth {
@@ -608,7 +800,7 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
                                       inUnit:NSCalendarUnitMonth
                                      forDate:firstDay];
     
-    return range.length;
+    return (NSInteger)range.length; // Явное приведение типа
 }
 
 - (void)animateCalendarOpen {
@@ -709,28 +901,83 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 
 - (void)closeButtonClicked:(id)sender {
     [[NSApplication sharedApplication] terminate:self];
-    exit(0); // Принудительное завершение, если terminate не сработает
+    exit(0);
 }
 
 - (NSView *)hitTest:(NSPoint)point {
     NSPoint localPoint = [self convertPoint:point fromView:nil];
-    if (NSPointInRect(localPoint, self.closeButton.frame) ||
-        NSPointInRect(localPoint, self.toggleCalendarButton.frame)) {
-        return [super hitTest:point];
+    
+    NSArray *buttons = @[
+        self.closeButton,
+        self.toggleCalendarButton,
+        self.timeFormatButton,
+        self.refreshButton,
+        self.settingsButton,
+        self.themeButton
+    ];
+    
+    for (NSButton *button in buttons) {
+        if (NSPointInRect(localPoint, button.frame)) {
+            return [super hitTest:point];
+        }
     }
+    
     return nil;
 }
 
 - (void)mouseEntered:(NSEvent *)event {
+    NSWindow *window = [self window];
     NSPoint location = [self convertPoint:[event locationInWindow] fromView:nil];
-    if (NSPointInRect(location, self.closeButton.frame) ||
-        NSPointInRect(location, self.toggleCalendarButton.frame)) {
-        [[self window] setIgnoresMouseEvents:NO];
+    
+    NSArray *buttons = @[
+        self.closeButton,
+        self.toggleCalendarButton,
+        self.timeFormatButton,
+        self.refreshButton,
+        self.settingsButton,
+        self.themeButton
+    ];
+    
+    for (NSButton *button in buttons) {
+        if (NSPointInRect(location, button.frame)) {
+            [window setIgnoresMouseEvents:NO];
+            return;
+        }
     }
+    
+    [window setIgnoresMouseEvents:YES];
 }
 
 - (void)mouseExited:(NSEvent *)event {
     [[self window] setIgnoresMouseEvents:YES];
+}
+
+- (void)updateTrackingAreas {
+    // Remove existing tracking areas
+    for (NSTrackingArea *area in [self trackingAreas]) {
+        [self removeTrackingArea:area];
+    }
+    
+    NSArray *buttons = @[
+        self.closeButton,
+        self.toggleCalendarButton,
+        self.timeFormatButton,
+        self.refreshButton,
+        self.settingsButton,
+        self.themeButton
+    ];
+    
+    // Создаем области отслеживания только для кнопок
+    for (NSButton *button in buttons) {
+        NSTrackingArea *area = [[NSTrackingArea alloc] 
+            initWithRect:button.frame
+                options:(NSTrackingMouseEnteredAndExited | 
+                        NSTrackingActiveAlways | 
+                        NSTrackingMouseMoved)
+                  owner:self
+               userInfo:nil];
+        [self addTrackingArea:area];
+    }
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -741,37 +988,30 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 }
 
 - (void)handleCalendarClick:(NSPoint)point {
-    // Calendar frame parameters
     CGFloat calendarWidth = 280;
     CGFloat calendarHeight = 200;
     CGFloat xOffset = 15;
     CGFloat yOffset = 40;
-    
-    // Convert point to calendar coordinates
+
     CGFloat relativeX = point.x - xOffset;
     CGFloat relativeY = point.y - yOffset;
-    
-    // Check if click is within calendar bounds
+
     if (relativeX < 0 || relativeX > calendarWidth ||
         relativeY < 0 || relativeY > calendarHeight) {
         return;
     }
     
-    // Calculate day area
     CGFloat dayWidth = calendarWidth / 7;
     CGFloat dayHeight = 25;
-    CGFloat headerHeight = 65; // Space for month name and weekday headers
-    
-    // Adjust for header area
+    CGFloat headerHeight = 65;
+
     if (relativeY > calendarHeight - headerHeight) {
-        return; // Click in header area
+        return;
     }
-    
-    // Calculate row and column
+
     NSInteger col = floor(relativeX / dayWidth);
     NSInteger row = floor((calendarHeight - relativeY - headerHeight) / dayHeight);
-    
-    // Get first day of month info
+
     NSDateComponents *comp = [[NSDateComponents alloc] init];
     comp.year = self.selectedYear;
     comp.month = self.selectedMonth;
@@ -780,8 +1020,7 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
     NSDate *firstDay = [self.calendar dateFromComponents:comp];
     NSInteger firstWeekday = [self.calendar component:NSCalendarUnitWeekday fromDate:firstDay];
     NSInteger adjustedWeekday = (firstWeekday + 5) % 7 + 1;
-    
-    // Calculate clicked day
+
     NSInteger clickedDay = row * 7 + col + 1 - (adjustedWeekday - 1);
     
     if (clickedDay > 0 && clickedDay <= [self daysInCurrentMonth]) {
@@ -798,6 +1037,7 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
     [self.timer invalidate];
     self.timer = nil;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self stopPowerMonitoring];
 }
 
 - (void)suspendUpdates {
@@ -828,6 +1068,136 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
         [self animateCalendarClose];
     }
     
+    [self setNeedsDisplay:YES];
+}
+
+- (void)startPowerMonitoring {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSTimer scheduledTimerWithTimeInterval:2.0
+                                       target:self
+                                     selector:@selector(updatePowerConsumption)
+                                     userInfo:nil
+                                      repeats:YES];
+        [self updatePowerConsumption];
+    });
+}
+
+- (void)initCPUInfo {
+    cpuInfo.host = mach_host_self();
+    natural_t processorCount;
+    kern_return_t kr = host_processor_info(cpuInfo.host,
+                                         PROCESSOR_CPU_LOAD_INFO,
+                                         &processorCount,
+                                         &cpuInfo.processor_info,
+                                         &cpuInfo.processor_count);
+    
+    if (kr == KERN_SUCCESS) {
+        processor_cpu_load_info_t processorInfo = (processor_cpu_load_info_t)cpuInfo.processor_info;
+        cpuInfo.prev_load = processorInfo[0];
+        cpuInfo.prev_time = mach_absolute_time();
+    }
+}
+
+- (float)calculateCPUUsage {
+    processor_cpu_load_info_data_t new_load;
+    processor_info_array_t processorInfo;
+    mach_msg_type_number_t processorMsgCount;
+    natural_t processorCount;
+    
+    kern_return_t kr = host_processor_info(cpuInfo.host,
+                                         PROCESSOR_CPU_LOAD_INFO,
+                                         &processorCount,
+                                         &processorInfo,
+                                         &processorMsgCount);
+    
+    if (kr != KERN_SUCCESS) {
+        return -1.0;
+    }
+    
+    new_load = ((processor_cpu_load_info_t)processorInfo)[0];
+    
+    natural_t user = new_load.cpu_ticks[CPU_STATE_USER] - cpuInfo.prev_load.cpu_ticks[CPU_STATE_USER];
+    natural_t system = new_load.cpu_ticks[CPU_STATE_SYSTEM] - cpuInfo.prev_load.cpu_ticks[CPU_STATE_SYSTEM];
+    natural_t idle = new_load.cpu_ticks[CPU_STATE_IDLE] - cpuInfo.prev_load.cpu_ticks[CPU_STATE_IDLE];
+    natural_t nice = new_load.cpu_ticks[CPU_STATE_NICE] - cpuInfo.prev_load.cpu_ticks[CPU_STATE_NICE];
+    
+    natural_t total = user + system + idle + nice;
+    float usage = total > 0 ? ((float)(user + system + nice) / total) * 100.0 : 0.0;
+    
+    cpuInfo.prev_load = new_load;
+    vm_deallocate(mach_task_self_, (vm_address_t)processorInfo, processorMsgCount);
+    
+    return usage;
+}
+
+- (void)updatePowerConsumption {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            [self initCPUInfo];
+        });
+        
+        float cpuUsage = [self calculateCPUUsage];
+        self.cpuUsage = cpuUsage;
+        
+        CFTypeRef powerInfo = IOPSCopyPowerSourcesInfo();
+        CFArrayRef powerSources = IOPSCopyPowerSourcesList(powerInfo);
+        
+        double currentPower = 0.0;
+        NSString *powerSourceType = @"Battery";
+        BOOL isCharging = NO;
+        
+        if (powerSources && CFArrayGetCount(powerSources) > 0) {
+            CFDictionaryRef powerSource = IOPSGetPowerSourceDescription(powerInfo, CFArrayGetValueAtIndex(powerSources, 0));
+            NSString *powerState = (__bridge NSString *)CFDictionaryGetValue(powerSource, CFSTR(kIOPSPowerSourceStateKey));
+            
+            if ([powerState isEqualToString:@"AC Power"]) {
+                powerSourceType = @"AC";
+                isCharging = YES;
+            }
+            
+            double loadFactor = self.cpuUsage / 100.0;
+            
+            if (isCharging) {
+                currentPower = 5.0 + (loadFactor * 25.0);
+            } else {
+                currentPower = 2.0 + (loadFactor * 15.0);
+            }
+        }
+        
+        NSString *loadStatus;
+        if (self.cpuUsage < 30) {
+            loadStatus = @"Низкая";
+        } else if (self.cpuUsage < 60) {
+            loadStatus = @"Средняя";
+        } else if (self.cpuUsage < 85) {
+            loadStatus = @"Высокая";
+        } else {
+            loadStatus = @"Критическая";
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.powerUsageStatus = [NSString stringWithFormat:@"%@ (%@ %.1fW)",
+                                   loadStatus,
+                                   powerSourceType,
+                                   currentPower];
+            [self setNeedsDisplay:YES];
+        });
+        
+        if (powerInfo) CFRelease(powerInfo);
+        if (powerSources) CFRelease(powerSources);
+    });
+}
+
+- (void)stopPowerMonitoring {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                           selector:@selector(updatePowerConsumption)
+                                             object:nil];
+}
+
+- (void)handleThemeButton:(id)sender {
+    self.isDarkTheme = !self.isDarkTheme;
+    [self.themeButton setTitle:self.isDarkTheme ? @"🌙" : @"☀️"];
     [self setNeedsDisplay:YES];
 }
 

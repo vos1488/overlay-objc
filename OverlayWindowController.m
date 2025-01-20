@@ -15,9 +15,18 @@
     [window setBackgroundColor:[NSColor clearColor]];
     [window setOpaque:NO];
     [window setLevel:CGWindowLevelForKey(kCGAssistiveTechHighWindowLevel)];
+    
+    // Важно: изменяем порядок установки свойств окна
     [window setIgnoresMouseEvents:YES];
     [window setAcceptsMouseMovedEvents:YES];
+    [window setMovable:NO];
+    [window setMovableByWindowBackground:NO];
     [window setSharingType:NSWindowSharingNone];
+    
+    // Добавляем флаг, чтобы окно пропускало клики
+    [window setAlphaValue:1.0];
+    [window setOpaque:NO];
+    [window setHasShadow:NO];
     
     NSWindowCollectionBehavior behavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
                                         NSWindowCollectionBehaviorStationary |
@@ -43,47 +52,10 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
-    [self registerKeyboardShortcuts];
+    // Удаляем вызов регистрации горячих клавиш
 }
 
-- (void)registerKeyboardShortcuts {
-    NSEventMask eventMask = NSEventMaskKeyDown;
-    [NSEvent addLocalMonitorForEventsMatchingMask:eventMask handler:^NSEvent *(NSEvent *event) {
-        if ([event modifierFlags] & NSEventModifierFlagCommand) {
-            switch ([event keyCode]) {
-                case 12: // Q key
-                    [[NSApplication sharedApplication] terminate:self];
-                    break;
-                case 4:  // H key
-                    [[self window] orderOut:nil];
-                    break;
-                case 46: // M key
-                    [self moveToNextDisplay];
-                    break;
-                case 15: // R key
-                    [self refreshAllData];
-                    break;
-            }
-        } else if ([event keyCode] == 53) { // ESC key
-            [[self window] orderOut:nil];
-        }
-        return event;
-    }];
-}
-
-- (void)moveToNextDisplay {
-    NSArray *screens = [NSScreen screens];
-    if (screens.count <= 1) return;
-    
-    NSWindow *window = [self window];
-    NSScreen *currentScreen = [window screen];
-    NSInteger currentIndex = [screens indexOfObject:currentScreen];
-    NSInteger nextIndex = (currentIndex + 1) % screens.count;
-    NSScreen *nextScreen = screens[nextIndex];
-    
-    NSRect frame = nextScreen.frame;
-    [window setFrame:frame display:YES animate:YES];
-}
+// Удаляем метод registerKeyboardShortcuts и связанные с ним методы
 
 - (void)refreshAllData {
     OverlayView *view = (OverlayView *)[self.window contentView];
