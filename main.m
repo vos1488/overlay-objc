@@ -13,6 +13,12 @@
 int main(int __attribute__((unused)) argc, const char * __attribute__((unused)) argv[]) {
     @autoreleasepool {
         NSApplication *application = [NSApplication sharedApplication];
+        
+        // Правильная загрузка иконки
+        NSString *imagePath = [[NSBundle mainBundle] pathForResource:@"icon" ofType:@"png"];
+        NSImage *icon = [[NSImage alloc] initWithContentsOfFile:imagePath];
+        [application setApplicationIconImage:icon];
+        
         [application setActivationPolicy:NSApplicationActivationPolicyAccessory];
         
         AppDelegate *delegate = [[AppDelegate alloc] init];

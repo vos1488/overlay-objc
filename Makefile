@@ -1,5 +1,5 @@
 # Version and build info
-VERSION = ALPHA_1.0.1
+VERSION = ALPHA_1.0.2
 BUILD_TIME = $(shell date +%Y%m%d_%H%M%S)
 ARCH = $(shell uname -m)
 GIT_HASH = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -107,6 +107,9 @@ OBJECTS = $(SOURCES:%.m=$(OBJ_DIR)/$(BUILD_TYPE)/%.o)
 DEPS = $(SOURCES:%.m=$(DEP_DIR)/%.d)
 EXECUTABLE = $(BUILD_DIR)/$(BUILD_TYPE)/overlay
 
+# Resource files
+RESOURCE_FILES = icon.png
+
 # Targets
 .PHONY: all clean install uninstall dirs debug release run check help dist distclean \
         profile analyze sign dsym bundle bundle-clean bundle-sign bundle-verify bundle-zip run-bundle
@@ -114,30 +117,53 @@ EXECUTABLE = $(BUILD_DIR)/$(BUILD_TYPE)/overlay
 # Default target
 .DEFAULT_GOAL := help
 
-# Help target with categories
+# Enhanced help target
 help:
-	@echo "$(BOLD)Overlay Build System $(VERSION) ($(ARCH))$(RESET)"
-	@echo "$(BOLD)By $(AUTHOR)$(RESET)"
-	@echo "$(BOLD)Build Environment:$(RESET)"
-	@echo "  macOS: $(OSX_VERSION)"
-	@echo "  Cores: $(NPROC)"
-	@echo "  Git:   $(GIT_HASH)"
-	@echo "\n$(BOLD)Basic Commands:$(RESET)"
-	@echo "  $(CYAN)make$(RESET)        - Show this help"
-	@echo "  $(CYAN)make all$(RESET)    - Build release version"
-	@echo "  $(CYAN)make run$(RESET)    - Build and run"
-	@echo "  $(CYAN)make clean$(RESET)  - Clean build files"
-	@echo "\n$(BOLD)Build Variants:$(RESET)"
-	@echo "  $(CYAN)make release$(RESET)  - Optimized build"
-	@echo "  $(CYAN)make debug$(RESET)    - Debug build with sanitizers"
-	@echo "  $(CYAN)make profile$(RESET)  - Build with profiling"
-	@echo "\n$(BOLD)Development:$(RESET)"
-	@echo "  $(CYAN)make analyze$(RESET)  - Run static analyzer"
-	@echo "  $(CYAN)make dsym$(RESET)     - Generate debug symbols"
-	@echo "  $(CYAN)make sign$(RESET)     - Sign application"
-	@echo "\n$(BOLD)Distribution:$(RESET)"
-	@echo "  $(CYAN)make dist$(RESET)     - Create distribution"
-	@echo "  $(CYAN)make install$(RESET)  - Install to $(PREFIX)"
+	@echo "$(BOLD)┌──────────────────────────────────────────────┐$(RESET)"
+	@echo "$(BOLD)│     Overlay Build System $(VERSION)     │$(RESET)"
+	@echo "$(BOLD)│          Created by $(AUTHOR)           │$(RESET)"
+	@echo "$(BOLD)└──────────────────────────────────────────────┘$(RESET)"
+	@echo ""
+	@echo "$(BOLD)System Information:$(RESET)"
+	@echo "  • macOS:    $(OSX_VERSION)"
+	@echo "  • CPU:      $(ARCH)"
+	@echo "  • Cores:    $(NPROC)"
+	@echo "  • Git:      $(GIT_HASH)"
+	@echo ""
+	@echo "$(BOLD)Build Commands:$(RESET)"
+	@echo "  $(CYAN)make$(RESET)              Show this help message"
+	@echo "  $(CYAN)make all$(RESET)          Build complete release version"
+	@echo "  $(CYAN)make debug$(RESET)        Build with debug symbols and sanitizers"
+	@echo "  $(CYAN)make release$(RESET)      Build optimized release version"
+	@echo "  $(CYAN)make profile$(RESET)      Build with profiling support"
+	@echo ""
+	@echo "$(BOLD)Development Tools:$(RESET)"
+	@echo "  $(CYAN)make analyze$(RESET)      Run static code analyzer"
+	@echo "  $(CYAN)make dsym$(RESET)         Generate debug symbols"
+	@echo "  $(CYAN)make check$(RESET)        Verify build environment"
+	@echo "  $(CYAN)make clean$(RESET)        Remove build artifacts"
+	@echo ""
+	@echo "$(BOLD)Distribution:$(RESET)"
+	@echo "  $(CYAN)make bundle$(RESET)       Create application bundle"
+	@echo "  $(CYAN)make sign$(RESET)         Sign application bundle"
+	@echo "  $(CYAN)make dist$(RESET)         Create distribution package"
+	@echo "  $(CYAN)make install$(RESET)      Install to Applications folder"
+	@echo ""
+	@echo "$(BOLD)Testing:$(RESET)"
+	@echo "  $(CYAN)make run$(RESET)          Build and run application"
+	@echo "  $(CYAN)make run-bundle$(RESET)   Run application bundle"
+	@echo ""
+	@echo "$(BOLD)Options:$(RESET)"
+	@echo "  $(CYAN)DEBUG=1$(RESET)           Enable debug build"
+	@echo "  $(CYAN)PROFILE=1$(RESET)        Enable profiling build"
+	@echo "  $(CYAN)PREFIX=/path$(RESET)     Set installation prefix (default: $(PREFIX))"
+	@echo ""
+	@echo "$(BOLD)Examples:$(RESET)"
+	@echo "  $(CYAN)make release$(RESET)     # Build optimized version"
+	@echo "  $(CYAN)make DEBUG=1$(RESET)     # Build debug version"
+	@echo "  $(CYAN)make install$(RESET)     # Install to Applications"
+	@echo ""
+	@echo "$(BOLD)For more information, visit:$(RESET) https://github.com/vos9/overlay-objc"
 
 # New targets
 profile: PROFILE=1
@@ -217,11 +243,57 @@ run-bundle: bundle
 	@echo "$(CYAN)Running application bundle...$(RESET)"
 	@open $(BUNDLE_DIR)
 
-# Cleaning
-clean: bundle-clean
-	@echo "$(CYAN)Cleaning build files...$(RESET)"
+# Enhanced cleaning targets
+.PHONY: clean clean-all clean-deps clean-logs clean-dist clean-bundles clean-dsym clean-cache
+
+clean: clean-all
+	@echo "$(GREEN)All clean targets completed successfully$(RESET)"
+
+clean-all: clean-deps clean-logs clean-dist clean-bundles clean-dsym clean-cache
+	@echo "$(CYAN)Removing build directories...$(RESET)"
 	@$(RM) $(OBJ_DIR) $(BUILD_DIR)
-	@echo "$(GREEN)Clean complete$(RESET)"
+	@echo "$(GREEN)Build directories cleaned$(RESET)"
+
+clean-deps:
+	@echo "$(CYAN)Cleaning dependency files...$(RESET)"
+	@$(RM) $(DEP_DIR)
+	@find . -name "*.d" -type f -delete
+	@echo "$(GREEN)Dependencies cleaned$(RESET)"
+
+clean-logs:
+	@echo "$(CYAN)Cleaning log files...$(RESET)"
+	@$(RM) $(LOG_DIR)
+	@find . -name "*.log" -type f -delete
+	@echo "$(GREEN)Logs cleaned$(RESET)"
+
+clean-dist:
+	@echo "$(CYAN)Cleaning distribution files...$(RESET)"
+	@$(RM) $(DIST_DIR)
+	@find . -name "*.zip" -type f -delete
+	@find . -name "*.tar.gz" -type f -delete
+	@echo "$(GREEN)Distribution files cleaned$(RESET)"
+
+clean-bundles:
+	@echo "$(CYAN)Cleaning application bundles...$(RESET)"
+	@$(RM) $(BUILD_DIR)/$(BUILD_TYPE)/$(BUNDLE_NAME)
+	@find . -name "*.app" -type d -exec rm -rf {} +
+	@echo "$(GREEN)Application bundles cleaned$(RESET)"
+
+clean-dsym:
+	@echo "$(CYAN)Cleaning debug symbols...$(RESET)"
+	@find . -name "*.dSYM" -type d -exec rm -rf {} +
+	@echo "$(GREEN)Debug symbols cleaned$(RESET)"
+
+clean-cache:
+	@echo "$(CYAN)Cleaning cache files...$(RESET)"
+	@find . -name ".DS_Store" -type f -delete
+	@find . -name "*.swp" -type f -delete
+	@find . -name "*~" -type f -delete
+	@if [ -n "$(CCACHE)" ]; then \
+		$(CCACHE) -C; \
+		echo "$(GREEN)Compiler cache cleaned$(RESET)"; \
+	fi
+	@echo "$(GREEN)Cache files cleaned$(RESET)"
 
 dist: bundle-zip
 	@echo "$(CYAN)Creating distribution package...$(RESET)"
@@ -241,7 +313,7 @@ bundle: $(EXECUTABLE)
 	@echo "$(CYAN)Creating application bundle...$(RESET)"
 	@mkdir -p $(MACOS_DIR) $(RESOURCES_DIR)
 	@cp $(EXECUTABLE) $(MACOS_DIR)/$(APP_NAME)
-	@echo "$(CYAN)Generating Info.plist...$(RESET)"
+	@cp icon.png $(RESOURCES_DIR)/
 	@echo '<?xml version="1.0" encoding="UTF-8"?>' > $(CONTENTS_DIR)/Info.plist
 	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> $(CONTENTS_DIR)/Info.plist
 	@echo '<plist version="1.0">' >> $(CONTENTS_DIR)/Info.plist
@@ -255,6 +327,7 @@ bundle: $(EXECUTABLE)
 	@echo '    <key>LSMinimumSystemVersion</key><string>10.10.0</string>' >> $(CONTENTS_DIR)/Info.plist
 	@echo '    <key>LSUIElement</key><true/>' >> $(CONTENTS_DIR)/Info.plist
 	@echo '    <key>NSHumanReadableCopyright</key><string>Copyright © $(shell date +%Y) $(AUTHOR)</string>' >> $(CONTENTS_DIR)/Info.plist
+	@echo '    <key>CFBundleIconFile</key><string>icon</string>' >> $(CONTENTS_DIR)/Info.plist
 	@echo '</dict>' >> $(CONTENTS_DIR)/Info.plist
 	@echo '</plist>' >> $(CONTENTS_DIR)/Info.plist
 	@$(PLUTIL) -convert binary1 $(CONTENTS_DIR)/Info.plist
