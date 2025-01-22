@@ -94,12 +94,247 @@ DEFINES = -DVERSION=\"$(VERSION)\" \
           -DAUTHOR=\"$(AUTHOR)\" \
           -DBUNDLE_VERSION=\"$(BUNDLE_VERSION)\"
 
-# Colors and formatting
-CYAN = \033[36m
-RED = \033[31m
-GREEN = \033[32m
-RESET = \033[0m
-BOLD = \033[1m
+# Enhanced colors and formatting
+CYAN    := \033[36m
+RED     := \033[31m
+GREEN   := \033[32m
+YELLOW  := \033[33m
+BLUE    := \033[34m
+MAGENTA := \033[35m
+RESET   := \033[0m
+BOLD    := \033[1m
+DIM     := \033[2m
+ITALIC  := \033[3m
+LINE    := \033[4m
+
+# Unicode symbols
+ARROW   := →
+CHECK   := ✓
+CROSS   := ✗
+STAR    := ★
+WARN    := ⚠
+BUILD   := 🔨
+CLEAN   := 🧹
+RUN     := 🚀
+BOOK    := 📖
+GEAR    := ⚙️
+PACK    := 📦
+LOCK    := 🔒
+
+# Enhanced visual elements
+PURPLE  := \033[35;1m
+WHITE   := \033[37;1m
+BG_BLUE := \033[44m
+FRAME   := \033[51m
+BLINK   := \033[5m
+INVERT  := \033[7m
+
+# Additional Unicode symbols
+ROCKET  := 🚀
+SPARKLE := ✨
+TOOLS   := 🛠️
+INFO    := ℹ️
+OK      := ✅
+ERROR   := ❌
+DEBUG   := 🔍
+COG     := ⚙️
+CLOCK   := 🕒
+DEPLOY  := 📦
+TRASH   := 🗑️
+
+# Additional visual elements
+BG_BLACK  := \033[40m
+BG_RED    := \033[41m
+BG_GREEN  := \033[42m
+BG_YELLOW := \033[43m
+UNDERLINE := \033[4m
+BLINK_HI  := \033[6m
+INVERSE   := \033[7m
+
+# More Unicode symbols
+DIAMOND   := 💎
+COMPUTER  := 💻
+WRENCH    := 🔧
+PACKAGE   := 📦
+LINK      := 🔗
+MAGIC     := ✨
+TARGET    := 🎯
+SHIELD    := 🛡️
+LIGHT     := 💡
+SPEED     := ⚡️
+
+# Additional visual styles
+BG_GRADIENT := \033[48;5;
+FG_GRADIENT := \033[38;5;
+FLASH      := \033[5;1m
+RAINBOW    := \033[38;5;%(i)dm
+
+# More UI symbols
+LOADING    := ⏳
+SUCCESS    := 🎉
+FAILED     := 💔
+WORKING    := 🔄
+DONE       := ✨
+BUILDING   := 🏗️
+CLEANING   := 🧹
+TESTING    := 🧪
+CONFIG     := ⚙️
+ROCKET     := 🚀
+
+# Fancy separator
+define separator
+	@echo "$(BLUE)▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃$(RESET)"
+endef
+
+# Enhanced box drawing
+define draw_box
+	@echo "$(BOLD)╭───────────────────────────────────────────╮"
+	@echo "$(BOLD)│ $(PURPLE)$(1)$(RESET)$(BOLD)                      │$(RESET)"
+	@echo "$(BOLD)╰─$(LINE)─────────────────────────────────────────$(RESET)─╯"
+endef
+
+# Progress spinner
+define show_progress
+	@echo -n "$(CYAN)$(BLINK)⠋$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠙$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠹$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠸$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠼$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠴$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠦$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠧$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠇$(RESET) $(1)"
+	@sleep 0.1
+	@echo -ne "\r$(CYAN)⠏$(RESET) $(1)\n"
+endef
+
+# Improved double box style
+define double_box
+	@echo "$(BOLD)╔══$(CYAN)$(1)══╗$(RESET)"
+	@echo "$(BOLD)║$(RESET)  $(BLUE)$(2)$(RESET)  $(BOLD)║$(RESET)"
+	@echo "$(BOLD)╚═════════════════════════╝$(RESET)"
+endef
+
+# Enhanced progress bar
+define progress_bar
+	@echo -n "$(CYAN)["
+	@for i in $(shell seq 1 25); do \
+		sleep 0.02; \
+		echo -n "▓"; \
+	done
+	@echo "] $(1)$(RESET)"
+endef
+
+# Fancy section divider
+define section_divider
+	@echo "$(BLUE)"
+	@echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+	@echo "┃  $(WHITE)$(1)$(BLUE)  ┃"
+	@echo "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+	@echo "$(RESET)"
+endef
+
+# Build status indicator
+define status_indicator
+	@echo "$(BG_BLUE)$(WHITE) $(1) $(RESET) $(2)"
+endef
+
+# Header template
+define print_header
+	@echo "$(BOLD)┌─────────────────────────────────────────────────┐$(RESET)"
+	@echo "$(BOLD)│       $(BLUE)Overlay Build System $(VERSION)$(RESET)$(BOLD)        │$(RESET)"
+	@echo "$(BOLD)│             $(MAGENTA)Created by $(AUTHOR)$(RESET)$(BOLD)              │$(RESET)"
+	@echo "$(BOLD)└─────────────────────────────────────────────────┘$(RESET)"
+endef
+
+# Section header template
+define print_section
+	@echo "$(BLUE)══════════════ $(1) ══════════════$(RESET)"
+endef
+
+# Enhanced box styles
+define fancy_box
+	@echo "$(BOLD)╭───━━━━━━━━━━$(1)━━━━━━━━━━───╮$(RESET)"
+	@echo "$(BOLD)│     $(FLASH)$(2)$(RESET)$(BOLD)          │$(RESET)"
+	@echo "$(BOLD)╰───━━━━━━━━━━━━━━━━━━━━━───╯$(RESET)"
+endef
+
+# Animated building indicator
+define build_animation
+	@echo -n "$(BUILDING) Building $(1) "
+	@for i in 1 2 3; do \
+		echo -n "." && sleep 0.2; \
+	done
+	@echo ""
+endef
+
+# Rainbow text effect
+define rainbow_print
+	@for i in {1..6}; do \
+		printf "$(RAINBOW)" $$i; \
+		echo -n "$(1)"; \
+		printf "$(RESET)"; \
+	done
+	@echo ""
+endef
+
+# Enhanced progress bar with percentage
+define progress_bar_pct
+	@echo -n "$(CYAN)[" 
+	@for i in $(shell seq 1 $(2)); do \
+		if [ $$i -le $$(($(1)*$(2)/100)) ]; then \
+			echo -n "█"; \
+		else \
+			echo -n "░"; \
+		fi \
+	done
+	@echo "] $(1)%$(RESET)"
+endef
+
+# Status message with icon
+define status_msg
+	@echo "$(1) $(BOLD)$(2)$(RESET) $(DIM)$(3)$(RESET)"
+endef
+
+# Box drawing with dynamic width
+define box_with_title
+	@echo "$(BOLD)╔══$(CYAN)$(1)$(BOLD)══╗$(RESET)"
+	@echo "$(BOLD)║  $(BLUE)$(2)$(BOLD)  ║$(RESET)"
+	@echo "$(BOLD)╚════════════════════════════╝$(RESET)"
+endef
+
+# Enhanced status bar
+define status_bar
+	@printf "$(CYAN)[" 
+	@for i in $(shell seq 1 40); do \
+		if [ $$i -le $$(($(1)*40/100)) ]; then \
+			printf "▰"; \
+		else \
+			printf "▱"; \
+		fi; \
+	done
+	@printf "] %3d%%$(RESET)\n" "$(1)"
+endef
+
+# Animated spinner with message
+define spinner
+	@printf "$(CYAN)⠋$(RESET) $(1)"
+	@for i in {1..3}; do \
+		for c in ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏; do \
+			printf "\r$(CYAN)$$c$(RESET) $(1)"; \
+			sleep 0.1; \
+		done; \
+	done
+	@printf "\r$(GREEN)✓$(RESET) $(1)\n"
+endef
 
 # Sources and objects
 SOURCES = main.m OverlayWindowController.m OverlayView.m
@@ -119,51 +354,78 @@ RESOURCE_FILES = icon.png
 
 # Enhanced help target
 help:
-	@echo "$(BOLD)┌──────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)│     Overlay Build System $(VERSION)     │$(RESET)"
-	@echo "$(BOLD)│          Created by $(AUTHOR)           │$(RESET)"
-	@echo "$(BOLD)└──────────────────────────────────────────────┘$(RESET)"
+	$(call box_with_title,"OVERLAY","Build System $(VERSION)")
 	@echo ""
-	@echo "$(BOLD)System Information:$(RESET)"
-	@echo "  • macOS:    $(OSX_VERSION)"
-	@echo "  • CPU:      $(ARCH)"
-	@echo "  • Cores:    $(NPROC)"
-	@echo "  • Git:      $(GIT_HASH)"
+	$(call section_divider,"$(COMPUTER) System Information")
+	$(call status_indicator,"OS","macOS $(OSX_VERSION)")
+	$(call status_indicator,"CPU","$(ARCH) with $(NPROC) cores")
+	$(call status_indicator,"GIT","$(GIT_HASH)")
 	@echo ""
-	@echo "$(BOLD)Build Commands:$(RESET)"
-	@echo "  $(CYAN)make$(RESET)              Show this help message"
-	@echo "  $(CYAN)make all$(RESET)          Build complete release version"
-	@echo "  $(CYAN)make debug$(RESET)        Build with debug symbols and sanitizers"
-	@echo "  $(CYAN)make release$(RESET)      Build optimized release version"
-	@echo "  $(CYAN)make profile$(RESET)      Build with profiling support"
+	$(call section_divider,"$(WRENCH) Build Commands")
+	$(call box_with_title,"BUILD","make all     - Full Release Build")
+	$(call box_with_title,"DEBUG","make debug   - Debug Build")
+	$(call box_with_title,"PROF", "make profile - Profile Build")
+	@echo "$(BG_BLUE)$(WHITE)"
+	@echo "    ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄    "
+	@echo "    █  $(RESET)$(BOLD)Overlay Build System$(BG_BLUE)$(WHITE)  █    "
+	@echo "    █   Version $(VERSION)  █    "
+	@echo "    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀    "
+	@echo "$(RESET)"
+	$(call section_divider,"$(DIAMOND) Overlay Build System $(VERSION) ")
+	@echo "$(BG_BLUE)$(WHITE)"
+	@echo "     ▒█████   ██▒   █▓▓█████  ██▀███   ██▓    ▄▄▄     ▓██   ██▓"
+	@echo "    ▒██▒  ██▒▓██░   █▒▓█   ▀ ▓██ ▒ ██▒▓██▒   ▒████▄    ▒██  ██▒"
+	@echo "    ▒██░  ██▒ ▓██  █▒░▒███   ▓██ ░▄█ ▒▒██░   ▒██  ▀█▄   ▒██ ██░"
+	@echo "    ▒██   ██░  ▒██ █░░▒▓█  ▄ ▒██▀▀█▄  ▒██░   ░██▄▄▄▄██  ░ ▐██▓░"
+	@echo "    ░ ████▓▒░   ▒▀█░  ░▒████▒░██▓ ▒██▒░██████▒▓█   ▓██▒ ░ ██▒▓░"
+	@echo "    ░ ▒░▒░▒░    ░ ▐░  ░░ ▒░ ░░ ▒▓ ░▒▓░░ ▒░▓  ░▒▒   ▓▒█░  ██▒▒▒ "
+	@echo "      ░ ▒ ▒░    ░ ░░   ░ ░  ░  ░▒ ░ ▒░░ ░ ▒  ░ ▒   ▒▒ ░▓██ ░▒░ "
+	@echo "$(RESET)"
+	$(call separator)
+	
+	$(call section_divider,"$(COMPUTER) System Information")
+	$(call status_indicator,"SYS","macOS $(OSX_VERSION) on $(ARCH)")
+	$(call status_indicator,"CPU","$(NPROC) cores available")
+	$(call status_indicator,"GIT","$(GIT_HASH)")
+	
+	$(call section_divider,"$(WRENCH) Build Commands")
+	$(call double_box,"BUILD","make all     - Full Release Build")
+	$(call double_box,"DEBUG","make debug   - Debug Build")
+	$(call double_box,"PROF ","make profile - Profile Build")
+	
 	@echo ""
-	@echo "$(BOLD)Development Tools:$(RESET)"
-	@echo "  $(CYAN)make analyze$(RESET)      Run static code analyzer"
-	@echo "  $(CYAN)make dsym$(RESET)         Generate debug symbols"
-	@echo "  $(CYAN)make check$(RESET)        Verify build environment"
-	@echo "  $(CYAN)make clean$(RESET)        Remove build artifacts"
+	$(call draw_box,"$(COG) System Information")
+	@echo "  $(CYAN)•$(RESET) OS:     $(BOLD)macOS $(OSX_VERSION)$(RESET)"
+	@echo "  $(CYAN)•$(RESET) CPU:    $(BOLD)$(ARCH)$(RESET)"
+	@echo "  $(CYAN)•$(RESET) Cores:  $(BOLD)$(NPROC)$(RESET)"
+	@echo "  $(CYAN)•$(RESET) Git:    $(BOLD)$(GIT_HASH)$(RESET)"
 	@echo ""
-	@echo "$(BOLD)Distribution:$(RESET)"
-	@echo "  $(CYAN)make bundle$(RESET)       Create application bundle"
-	@echo "  $(CYAN)make sign$(RESET)         Sign application bundle"
-	@echo "  $(CYAN)make dist$(RESET)         Create distribution package"
-	@echo "  $(CYAN)make install$(RESET)      Install to Applications folder"
+	$(call draw_box,"$(ROCKET) Build Commands")
+	@echo "  $(CYAN)make$(RESET)        $(DIM)Show this help message$(RESET)"
+	@echo "  $(CYAN)make all$(RESET)    $(DIM)Build complete release version$(RESET)"
+	@echo "  $(CYAN)make release$(RESET)$(DIM) Build optimized version$(RESET)"
+	@echo "  $(CYAN)make debug$(RESET)  $(DIM)Build with debug symbols$(RESET)"
 	@echo ""
-	@echo "$(BOLD)Testing:$(RESET)"
-	@echo "  $(CYAN)make run$(RESET)          Build and run application"
-	@echo "  $(CYAN)make run-bundle$(RESET)   Run application bundle"
+	$(call print_section,$(GEAR) Development Tools)
+	@echo "  $(CYAN)make analyze$(RESET)      $(DIM)Run static code analyzer$(RESET)"
+	@echo "  $(CYAN)make dsym$(RESET)         $(DIM)Generate debug symbols$(RESET)"
+	@echo "  $(CYAN)make check$(RESET)        $(DIM)Verify build environment$(RESET)"
 	@echo ""
-	@echo "$(BOLD)Options:$(RESET)"
-	@echo "  $(CYAN)DEBUG=1$(RESET)           Enable debug build"
-	@echo "  $(CYAN)PROFILE=1$(RESET)        Enable profiling build"
-	@echo "  $(CYAN)PREFIX=/path$(RESET)     Set installation prefix (default: $(PREFIX))"
+	$(call print_section,$(PACK) Distribution)
+	@echo "  $(CYAN)make bundle$(RESET)       $(DIM)Create application bundle$(RESET)"
+	@echo "  $(CYAN)make sign$(RESET)         $(DIM)Sign application bundle$(RESET)"
+	@echo "  $(CYAN)make dist$(RESET)         $(DIM)Create distribution package$(RESET)"
 	@echo ""
-	@echo "$(BOLD)Examples:$(RESET)"
-	@echo "  $(CYAN)make release$(RESET)     # Build optimized version"
-	@echo "  $(CYAN)make DEBUG=1$(RESET)     # Build debug version"
-	@echo "  $(CYAN)make install$(RESET)     # Install to Applications"
+	$(call print_section,$(RUN) Testing)
+	@echo "  $(CYAN)make run$(RESET)          $(DIM)Build and run application$(RESET)"
+	@echo "  $(CYAN)make run-bundle$(RESET)   $(DIM)Run application bundle$(RESET)"
 	@echo ""
-	@echo "$(BOLD)For more information, visit:$(RESET) https://github.com/vos9/overlay-objc"
+	$(call print_section,$(WARN) Options)
+	@echo "  $(YELLOW)DEBUG=1$(RESET)           Enable debug build"
+	@echo "  $(YELLOW)PROFILE=1$(RESET)        Enable profiling build"
+	@echo "  $(YELLOW)PREFIX=/path$(RESET)     Set installation prefix"
+	@echo ""
+	@echo "$(DIM)For more information, visit: https://github.com/vos9/overlay-objc$(RESET)"
 
 # New targets
 profile: PROFILE=1
@@ -186,9 +448,15 @@ sign: $(EXECUTABLE)
 
 # Enhanced build targets
 release: MAKEFLAGS += -j$(NPROC)
-release: dirs check $(EXECUTABLE)
-	@echo "$(GREEN)Release build complete: $(EXECUTABLE)$(RESET)"
-	@echo "Build info: $(VERSION) ($(GIT_HASH)) for $(ARCH)"
+release: dirs check
+	@echo "$(CYAN)Building release version...$(RESET)"
+	$(call status_bar,25)
+	@$(MAKE) $(EXECUTABLE)
+	$(call status_bar,50)
+	@echo "$(CYAN)Creating application bundle...$(RESET)"
+	@$(MAKE) bundle
+	$(call status_bar,100)
+	@echo "$(GREEN)Release build complete$(RESET)"
 
 debug: MAKEFLAGS += -j$(NPROC)
 debug: DEBUG=1
@@ -250,9 +518,9 @@ clean: clean-all
 	@echo "$(GREEN)All clean targets completed successfully$(RESET)"
 
 clean-all: clean-deps clean-logs clean-dist clean-bundles clean-dsym clean-cache
-	@echo "$(CYAN)Removing build directories...$(RESET)"
+	$(call spinner,"Cleaning build directories...")
 	@$(RM) $(OBJ_DIR) $(BUILD_DIR)
-	@echo "$(GREEN)Build directories cleaned$(RESET)"
+	$(call box_with_title,"CLEAN","All build artifacts removed")
 
 clean-deps:
 	@echo "$(CYAN)Cleaning dependency files...$(RESET)"
@@ -310,10 +578,11 @@ distclean: clean
 
 # Bundle targets
 bundle: $(EXECUTABLE)
-	@echo "$(CYAN)Creating application bundle...$(RESET)"
+	$(call fancy_box,"BUNDLE","Creating application bundle")
 	@mkdir -p $(MACOS_DIR) $(RESOURCES_DIR)
 	@cp $(EXECUTABLE) $(MACOS_DIR)/$(APP_NAME)
 	@cp icon.png $(RESOURCES_DIR)/
+	@echo "$(CYAN)Generating Info.plist...$(RESET)"
 	@echo '<?xml version="1.0" encoding="UTF-8"?>' > $(CONTENTS_DIR)/Info.plist
 	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> $(CONTENTS_DIR)/Info.plist
 	@echo '<plist version="1.0">' >> $(CONTENTS_DIR)/Info.plist
@@ -353,6 +622,59 @@ bundle-clean:
 	@echo "$(CYAN)Cleaning bundle...$(RESET)"
 	@$(RM) $(BUNDLE_DIR)
 	@echo "$(GREEN)Bundle cleaned$(RESET)"
+
+# Add new convenience targets
+.PHONY: doctor info version update-icons
+
+doctor: ## Run system checks
+	$(call fancy_box,"DOCTOR","Running system diagnostics")
+	$(call status_msg,$(CONFIG),"Checking system configuration","")
+	@echo "$(CYAN)System Information:$(RESET)"
+	@system_profiler SPSoftwareDataType SPHardwareDataType 2>/dev/null | grep -E "System Version:|Memory:" || echo "Unable to get system info"
+	
+	@echo "\n$(CYAN)Development Tools:$(RESET)"
+	@if [ -d "/Applications/Xcode.app" ]; then \
+		echo "$(GREEN)✓ Xcode:$(RESET)     $$(xcodebuild -version 2>/dev/null || echo 'Not installed')"; \
+	else \
+		echo "$(YELLOW)⚠ Xcode:$(RESET)     Not installed (using Command Line Tools)"; \
+	fi
+	
+	@echo "$(GREEN)✓ CLTools:$(RESET)   $$(pkgutil --pkg-info=com.apple.pkg.CLTools_Executables 2>/dev/null | grep -i version: | cut -d: -f2 || echo 'Not found')"
+	@echo "$(GREEN)✓ Clang:$(RESET)     $$($(CC) --version | head -n1)"
+	@echo "$(GREEN)✓ Make:$(RESET)      $$($(MAKE) --version | head -n1)"
+	
+	@echo "\n$(CYAN)Build Environment:$(RESET)"
+	@echo "$(GREEN)✓ Architecture:$(RESET) $(ARCH)"
+	@echo "$(GREEN)✓ Cores:$(RESET)       $(NPROC)"
+	@echo "$(GREEN)✓ Git Hash:$(RESET)    $(GIT_HASH)"
+	
+	@if [ ! -d "/Applications/Xcode.app" ]; then \
+		echo "\n$(YELLOW)Note:$(RESET) Building with Command Line Tools only"; \
+		echo "      This is sufficient for building the project."; \
+	fi
+	
+	$(call status_msg,$(DONE),"Diagnostics complete","Environment checked")
+	@exit 0
+
+info: ## Show build information
+	$(call fancy_box,"INFO","Build Configuration")
+	@echo "$(BOLD)Version:$(RESET)    $(VERSION)"
+	@echo "$(BOLD)Build:$(RESET)      $(BUILD_TIME)"
+	@echo "$(BOLD)Arch:$(RESET)       $(ARCH)"
+	@echo "$(BOLD)Compiler:$(RESET)   $(shell $(CC) --version | head -n1)"
+	@echo "$(BOLD)SDK:$(RESET)        $(shell xcrun --show-sdk-path)"
+
+version: ## Show version
+	@echo "$(BOLD)$(APP_NAME) $(VERSION)$(RESET)"
+	@echo "$(DIM)Build $(BUILD_TIME) for $(ARCH)$(RESET)"
+
+update-icons: ## Update application icons
+	$(call status_msg,$(WORKING),"Updating icons","")
+	@mkdir -p $(RESOURCES_DIR)
+	@for size in 16 32 64 128 256 512 1024; do \
+		sips -z $$size $$size icon.png --out $(RESOURCES_DIR)/icon_$${size}x$${size}.png; \
+	done
+	$(call status_msg,$(DONE),"Icons updated","")
 
 # Include dependencies
 -include $(DEPS)
