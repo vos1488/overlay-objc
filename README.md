@@ -1,6 +1,6 @@
 # Overlay
 
-![Version](https://img.shields.io/badge/version-ALPHA_1.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-ALPHA_1.0.3-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS%2010.10%2B-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -208,7 +208,7 @@ overlay-objc/
 
 ## История версий
 
-- ALPHA_1.0.2 - Первый выпуск с базовой функциональностью
+- ALPHA_1.0.0 - Первый выпуск с базовой функциональностью
 - Планируются будущие выпуски с дополнительными функциями
 
 ## Иконка приложения

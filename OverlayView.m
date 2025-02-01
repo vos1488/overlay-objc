@@ -3,6 +3,7 @@
 #import <IOKit/ps/IOPSKeys.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #import <mach/mach.h>
 #import <IOKit/pwr_mgt/IOPMLib.h>
@@ -11,6 +12,7 @@
 #import <mach/mach_host.h>
 #import <mach/processor_info.h>
 #import <mach/mach_time.h>
+#include <sys/sysctl.h>
 
 // Add callback declaration at the top of the file
 static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink, 
@@ -145,28 +147,6 @@ static CPUInfo cpuInfo = {0};
         self.animationProgress = 0.0;
         self.isAnimating = NO;
 
-        // Initialize and configure the toggle calendar button
-        NSRect toggleButtonFrame = NSMakeRect(frame.size.width - 60, frame.size.height - 50, 20, 20);
-        self.toggleCalendarButton = [[NSButton alloc] initWithFrame:toggleButtonFrame];
-        [self.toggleCalendarButton setBezelStyle:NSBezelStyleCircular];
-        [self.toggleCalendarButton setButtonType:NSButtonTypeMomentaryLight];
-        [self.toggleCalendarButton setBordered:YES];
-        [self.toggleCalendarButton setTitle:@"C"];
-        [self.toggleCalendarButton setFont:[NSFont systemFontOfSize:12]];
-        [self.toggleCalendarButton setTarget:self];
-        [self.toggleCalendarButton setAction:@selector(toggleCalendarButtonClicked:)];
-        [self.toggleCalendarButton setWantsLayer:YES];
-        self.toggleCalendarButton.layer.backgroundColor = [[NSColor colorWithCalibratedWhite:0.0 alpha:0.3] CGColor];
-        [self addSubview:self.toggleCalendarButton];
-
-        // Add tracking area for toggle calendar button
-        NSTrackingArea *calendarButtonTracking = [[NSTrackingArea alloc] 
-            initWithRect:self.toggleCalendarButton.frame
-            options:(NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways)
-            owner:self
-            userInfo:nil];
-        [self addTrackingArea:calendarButtonTracking];
-        
         // Initialize power monitoring properties
         self.cpuUsage = 0.0;
         self.powerConsumption = 0.0;
@@ -177,6 +157,26 @@ static CPUInfo cpuInfo = {0};
         
         [self setupControlButtons];
         self.isDarkTheme = YES; // По умолчанию тёмная тема
+
+        // Initialize network monitoring
+        self.lastBytesIn = 0;
+        self.lastBytesOut = 0;
+        self.lastNetworkCheck = [NSDate timeIntervalSinceReferenceDate];
+        
+        // Start network monitoring timer
+        self.networkUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
+                                                                 target:self
+                                                               selector:@selector(updateNetworkThroughput)
+                                                               userInfo:nil
+                                                                repeats:YES];
+        [[NSRunLoop currentRunLoop] addTimer:self.networkUpdateTimer forMode:NSRunLoopCommonModes];
+
+        self.memoryUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:2.0
+                                                                  target:self
+                                                                selector:@selector(updateMemoryUsage)
+                                                                userInfo:nil
+                                                                 repeats:YES];
+        [[NSRunLoop currentRunLoop] addTimer:self.memoryUpdateTimer forMode:NSRunLoopCommonModes];
     }
     return self;
 }
@@ -198,28 +198,6 @@ static CPUInfo cpuInfo = {0};
     self.settingsButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
                                               title:@"S"
                                             action:@selector(handleSettingsButton:)];
-    
-    // Refresh button
-    rightEdge -= spacing;
-    self.refreshButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
-                                             title:@"R"
-                                           action:@selector(handleRefreshButton:)];
-    
-    // Time format button
-    rightEdge -= spacing;
-    self.timeFormatButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
-                                                title:@"T"
-                                              action:@selector(handleTimeFormatButton:)];
-    
-    // Calendar button
-    rightEdge -= spacing;
-    self.toggleCalendarButton.frame = NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize);
-    
-    // Theme button
-    rightEdge -= spacing;
-    self.themeButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
-                                           title:@"🌙"
-                                         action:@selector(handleThemeButton:)];
     
     // Add tracking areas for all buttons after creating them
     [self updateTrackingAreas];
@@ -250,29 +228,59 @@ static CPUInfo cpuInfo = {0};
     [self updateBatteryInfo];
     [self updateIPAddresses];
     [self updateNetworkStatus];
-    [self updatePowerConsumption];
+    [self updateMemoryUsage];
+    [self updateNetworkThroughput];
+    [self updateCPUTemperature];
+    [self setNeedsDisplay:YES];
 }
 
 - (void)handleSettingsButton:(id)sender {
-    // Create and show settings panel
+    [self showSettingsDialog];
+}
+
+- (void)showSettingsDialog {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Настройки";
-    alert.informativeText = @"Настройки оверлея";
+    alert.messageText = @"Settings";
+    alert.informativeText = @"Configure overlay settings";
     
-    [alert addButtonWithTitle:@"Сбросить"];
-    [alert addButtonWithTitle:@"Закрыть"];
+    NSButton *timeFormatButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
+    [timeFormatButton setButtonType:NSButtonTypeSwitch];
+    [timeFormatButton setTitle:@"24-Hour Format"];
+    [timeFormatButton setState:self.is24HourFormat ? NSControlStateValueOn : NSControlStateValueOff];
+    [timeFormatButton setTarget:self];
+    [timeFormatButton setAction:@selector(toggleTimeFormat)];
     
-    NSTextField *opacityField = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 200, 24)];
-    opacityField.doubleValue = self.opacity * 100;
-    opacityField.placeholderString = @"Прозрачность (0-100%)";
-    alert.accessoryView = opacityField;
+    NSButton *compactModeButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
+    [compactModeButton setButtonType:NSButtonTypeSwitch];
+    [compactModeButton setTitle:@"Compact Mode"];
+    [compactModeButton setState:self.isCompactMode ? NSControlStateValueOn : NSControlStateValueOff];
+    [compactModeButton setTarget:self];
+    [compactModeButton setAction:@selector(toggleCompactMode)];
+    
+    NSButton *themeButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
+    [themeButton setButtonType:NSButtonTypeSwitch];
+    [themeButton setTitle:@"Dark Theme"];
+    [themeButton setState:self.isDarkTheme ? NSControlStateValueOn : NSControlStateValueOff];
+    [themeButton setTarget:self];
+    [themeButton setAction:@selector(handleThemeButton:)];
+    
+    NSView *accessoryView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 200, 100)];
+    [accessoryView addSubview:timeFormatButton];
+    [accessoryView addSubview:compactModeButton];
+    [accessoryView addSubview:themeButton];
+    
+    [timeFormatButton setFrameOrigin:NSMakePoint(10, 60)];
+    [compactModeButton setFrameOrigin:NSMakePoint(10, 30)];
+    [themeButton setFrameOrigin:NSMakePoint(10, 0)];
+    
+    [alert setAccessoryView:accessoryView];
+    
+    [alert addButtonWithTitle:@"Save"];
+    [alert addButtonWithTitle:@"Close"];
     
     NSInteger response = [alert runModal];
     if (response == NSAlertFirstButtonReturn) {
-        [self resetToDefaults];
-    } else {
-        self.opacity = opacityField.doubleValue / 100.0;
-        [self setNeedsDisplay:YES];
+        [self saveSettings];
     }
 }
 
@@ -585,6 +593,24 @@ static CPUInfo cpuInfo = {0};
     NSPoint powerPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 135);
     [powerText drawAtPoint:powerPoint withAttributes:attrs];
     
+    NSString *memoryText = [NSString stringWithFormat:@"Memory: %@ / %@",
+                           [self formatMemorySize:self.memoryUsage],
+                           [self formatMemorySize:self.memoryTotal]];
+    NSPoint memoryPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 155);
+    [memoryText drawAtPoint:memoryPoint withAttributes:attrs];
+    
+    NSString *networkThroughputText = [NSString stringWithFormat:@"Network: %@", 
+                           self.networkThroughput ?: @"N/A"];
+    NSPoint networkThroughputPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 175);
+    [networkThroughputText drawAtPoint:networkThroughputPoint withAttributes:attrs];
+    
+    if (self.cpuTemp > 0) {
+        NSString *tempText = [NSString stringWithFormat:@"CPU Temp: %.1f°C", 
+                            self.cpuTemp];
+        NSPoint tempPoint = NSMakePoint(leftPadding, NSHeight(self.bounds) - topPadding - 195);
+        [tempText drawAtPoint:tempPoint withAttributes:attrs];
+    }
+    
     NSString *authorText = @"© vos9.su";
     NSPoint authorPoint = NSMakePoint(NSWidth(self.bounds) - 80, 10);
     [attrs setObject:[NSFont fontWithName:@"Helvetica" size:12] forKey:NSFontAttributeName];
@@ -597,6 +623,25 @@ static CPUInfo cpuInfo = {0};
     
     self.needsFullRedraw = NO;
     self.dirtyRect = dirtyRect;
+
+    // Center top content for compact mode
+    if (self.isCompactMode) {
+        // Style: minimal, centered at the top
+        // Example of drawing fewer metrics in a smaller area
+        NSString *compactText = [NSString stringWithFormat:@"%@ | CPU: %.0f%% | Mem: %.1fMB",
+                                 self.currentTime ?: @"--:--",
+                                 self.cpuUsage,
+                                 self.memoryUsage];
+        NSDictionary *compactAttrs = @{ NSFontAttributeName: [NSFont systemFontOfSize:14],
+                                        NSForegroundColorAttributeName: [NSColor whiteColor] };
+        NSSize textSize = [compactText sizeWithAttributes:compactAttrs];
+        CGFloat x = (NSWidth(self.bounds) - textSize.width) / 2.0;
+        CGFloat y = NSHeight(self.bounds) - 22;
+        [compactText drawAtPoint:NSMakePoint(x, y) withAttributes:compactAttrs];
+    } else {
+        // Full mode: existing layout with detailed metrics
+        // Remove the call to super drawRect here to avoid double drawing
+    }
 }
 
 - (void)drawCalendar {
@@ -909,11 +954,7 @@ static CPUInfo cpuInfo = {0};
     
     NSArray *buttons = @[
         self.closeButton,
-        self.toggleCalendarButton,
-        self.timeFormatButton,
-        self.refreshButton,
-        self.settingsButton,
-        self.themeButton
+        self.settingsButton
     ];
     
     for (NSButton *button in buttons) {
@@ -931,11 +972,7 @@ static CPUInfo cpuInfo = {0};
     
     NSArray *buttons = @[
         self.closeButton,
-        self.toggleCalendarButton,
-        self.timeFormatButton,
-        self.refreshButton,
-        self.settingsButton,
-        self.themeButton
+        self.settingsButton
     ];
     
     for (NSButton *button in buttons) {
@@ -960,23 +997,21 @@ static CPUInfo cpuInfo = {0};
     
     NSArray *buttons = @[
         self.closeButton,
-        self.toggleCalendarButton,
-        self.timeFormatButton,
-        self.refreshButton,
-        self.settingsButton,
-        self.themeButton
+        self.settingsButton
     ];
     
     // Создаем области отслеживания только для кнопок
     for (NSButton *button in buttons) {
-        NSTrackingArea *area = [[NSTrackingArea alloc] 
-            initWithRect:button.frame
-                options:(NSTrackingMouseEnteredAndExited | 
-                        NSTrackingActiveAlways | 
-                        NSTrackingMouseMoved)
-                  owner:self
-               userInfo:nil];
-        [self addTrackingArea:area];
+        if (button) {
+            NSTrackingArea *area = [[NSTrackingArea alloc] 
+                initWithRect:button.frame
+                    options:(NSTrackingMouseEnteredAndExited | 
+                            NSTrackingActiveAlways | 
+                            NSTrackingMouseMoved)
+                      owner:self
+                   userInfo:nil];
+            [self addTrackingArea:area];
+        }
     }
 }
 
@@ -1038,6 +1073,10 @@ static CPUInfo cpuInfo = {0};
     self.timer = nil;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self stopPowerMonitoring];
+    [self.networkUpdateTimer invalidate];
+    self.networkUpdateTimer = nil;
+    [self.memoryUpdateTimer invalidate];
+    self.memoryUpdateTimer = nil;
 }
 
 - (void)suspendUpdates {
@@ -1054,20 +1093,6 @@ static CPUInfo cpuInfo = {0};
 - (void)invalidateCache {
     [self.imageCache removeAllObjects];
     self.needsFullRedraw = YES;
-    [self setNeedsDisplay:YES];
-}
-
-- (void)toggleCalendarButtonClicked:(id)sender {
-    if (self.isAnimating) return;
-    
-    self.showCalendar = !self.showCalendar;
-    
-    if (self.showCalendar) {
-        [self animateCalendarOpen];
-    } else {
-        [self animateCalendarClose];
-    }
-    
     [self setNeedsDisplay:YES];
 }
 
@@ -1197,7 +1222,154 @@ static CPUInfo cpuInfo = {0};
 
 - (void)handleThemeButton:(id)sender {
     self.isDarkTheme = !self.isDarkTheme;
-    [self.themeButton setTitle:self.isDarkTheme ? @"🌙" : @"☀️"];
+    [self setNeedsDisplay:YES];
+}
+
+- (void)updateMemoryUsage {
+    // Get system memory statistics
+    vm_size_t pageSize;
+    host_page_size(mach_host_self(), &pageSize);
+    
+    mach_msg_type_number_t hostCount = HOST_VM_INFO64_COUNT;
+    vm_statistics64_data_t vmStats;
+    if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (host_info64_t)&vmStats, &hostCount) == KERN_SUCCESS) {
+        uint64_t activeMemory = vmStats.active_count * pageSize;
+        uint64_t inactiveMemory = vmStats.inactive_count * pageSize;
+        uint64_t wiredMemory = vmStats.wire_count * pageSize;
+        
+        uint64_t usedMemory = activeMemory + inactiveMemory + wiredMemory;
+        
+        // Get total physical memory
+        int mib[2] = {CTL_HW, HW_MEMSIZE};
+        u_int namelen = sizeof(mib) / sizeof(mib[0]);
+        uint64_t totalMemory = 0;
+        size_t len = sizeof(totalMemory);
+        
+        if (sysctl(mib, namelen, &totalMemory, &len, NULL, 0) == 0) {
+            self.memoryTotal = totalMemory / (1024.0 * 1024.0); // Convert to MB
+            self.memoryUsage = usedMemory / (1024.0 * 1024.0); // Convert to MB
+        }
+    }
+    
+    [self setNeedsDisplay:YES];
+}
+
+- (NSString *)formatMemorySize:(double)memoryInMB {
+    if (memoryInMB < 1024) {
+        return [NSString stringWithFormat:@"%.0f MB", memoryInMB];
+    } else {
+        return [NSString stringWithFormat:@"%.2f GB", memoryInMB / 1024.0];
+    }
+}
+
+- (void)updateNetworkThroughput {
+    struct ifaddrs *ifaddrs;
+    uint64_t currentBytesIn = 0;
+    uint64_t currentBytesOut = 0;
+    
+    if (getifaddrs(&ifaddrs) == 0) {
+        struct ifaddrs *interface;
+        
+        // Sum up all interface statistics
+        for (interface = ifaddrs; interface; interface = interface->ifa_next) {
+            // Skip loopback and inactive interfaces
+            if (!interface->ifa_addr || 
+                (interface->ifa_flags & IFF_LOOPBACK) || 
+                !(interface->ifa_flags & IFF_UP) ||
+                !(interface->ifa_flags & IFF_RUNNING)) {
+                continue;
+            }
+            
+            // Only count IPv4 interfaces
+            if (interface->ifa_addr->sa_family == AF_LINK) {
+                struct if_data *data = (struct if_data *)interface->ifa_data;
+                if (data) {
+                    currentBytesIn += data->ifi_ibytes;
+                    currentBytesOut += data->ifi_obytes;
+                }
+            }
+        }
+        freeifaddrs(ifaddrs);
+        
+        // Calculate throughput
+        NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+        NSTimeInterval timeDelta = now - self.lastNetworkCheck;
+        
+        if (timeDelta > 0 && self.lastBytesIn > 0) {
+            double bytesInPerSec = (currentBytesIn - self.lastBytesIn) / timeDelta;
+            double bytesOutPerSec = (currentBytesOut - self.lastBytesOut) / timeDelta;
+            
+            // Format with appropriate units
+            NSString *inRate = [self formatDataRate:bytesInPerSec];
+            NSString *outRate = [self formatDataRate:bytesOutPerSec];
+            
+            self.networkThroughput = [NSString stringWithFormat:@"↓%@ ↑%@", inRate, outRate];
+        }
+        
+        self.lastBytesIn = currentBytesIn;
+        self.lastBytesOut = currentBytesOut;
+        self.lastNetworkCheck = now;
+        
+        [self setNeedsDisplay:YES];
+    }
+}
+
+- (NSString *)formatDataRate:(double)bytesPerSecond {
+    if (bytesPerSecond < 1024) {
+        return [NSString stringWithFormat:@"%.0f B/s", bytesPerSecond];
+    } else if (bytesPerSecond < 1024 * 1024) {
+        return [NSString stringWithFormat:@"%.1f KB/s", bytesPerSecond / 1024.0];
+    } else {
+        return [NSString stringWithFormat:@"%.1f MB/s", bytesPerSecond / 1024.0 / 1024.0];
+    }
+}
+
+- (void)updateCPUTemperature {
+    // This is a simplified example - real implementation would need IOKit
+    self.cpuTemp = 0.0;
+    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault,
+                                                     IOServiceMatching("AppleSMC"));
+    if (service) {
+        // Read CPU temperature using SMC
+        // Implementation depends on macOS version and hardware
+        IOObjectRelease(service);
+    }
+}
+
+- (void)saveSettings {
+    NSString *settingsPath = [NSString stringWithFormat:@"%@/Library/Application Support/Overlay/settings.plist",
+                             NSHomeDirectory()];
+    [[NSFileManager defaultManager] createDirectoryAtPath:[settingsPath stringByDeletingLastPathComponent]
+                              withIntermediateDirectories:YES
+                                             attributes:nil
+                                                  error:nil];
+    
+    NSDictionary *settings = @{
+        @"opacity": @(self.opacity),
+        @"is24HourFormat": @(self.is24HourFormat),
+        @"showSeconds": @(self.showSeconds),
+        @"isDarkTheme": @(self.isDarkTheme)
+    };
+    
+    [settings writeToFile:settingsPath atomically:YES];
+}
+
+- (void)loadSettings {
+    NSString *settingsPath = [NSString stringWithFormat:@"%@/Library/Application Support/Overlay/settings.plist",
+                             NSHomeDirectory()];
+    NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+    
+    if (settings) {
+        self.opacity = [settings[@"opacity"] doubleValue];
+        self.is24HourFormat = [settings[@"is24HourFormat"] boolValue];
+        self.showSeconds = [settings[@"showSeconds"] boolValue];
+        self.isDarkTheme = [settings[@"isDarkTheme"] boolValue];
+        [self setNeedsDisplay:YES];
+    }
+}
+
+- (void)toggleCompactMode {
+    self.isCompactMode = !self.isCompactMode;
     [self setNeedsDisplay:YES];
 }
 

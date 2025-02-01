@@ -35,12 +35,26 @@
 @property (assign, nonatomic) double powerConsumption;
 @property (strong, nonatomic) NSString *powerUsageStatus;
 @property (assign, nonatomic) float cpuTemperature;
-@property (strong, nonatomic) NSButton *toggleCalendarButton;
-@property (strong, nonatomic) NSButton *timeFormatButton;
-@property (strong, nonatomic) NSButton *refreshButton;
-@property (strong, nonatomic) NSButton *settingsButton;
 @property (assign, nonatomic) BOOL isDarkTheme;
-@property (strong, nonatomic) NSButton *themeButton;
+
+// New monitoring properties
+@property (assign, nonatomic) double memoryUsage;
+@property (assign, nonatomic) double memoryTotal;
+@property (strong, nonatomic) NSString *networkThroughput;
+@property (assign, nonatomic) double cpuTemp;
+@property (strong, nonatomic) NSString *settingsPath;
+
+// Network monitoring properties
+@property (assign, nonatomic) uint64_t lastBytesIn;
+@property (assign, nonatomic) uint64_t lastBytesOut;
+@property (assign, nonatomic) NSTimeInterval lastNetworkCheck;
+@property (strong, nonatomic) NSTimer *networkUpdateTimer;
+
+@property (strong, nonatomic) NSTimer *memoryUpdateTimer;
+
+@property (assign, nonatomic) BOOL isCompactMode;
+
+@property (strong, nonatomic) NSButton *settingsButton;
 
 - (void)toggleTimeFormat;
 - (void)updateNetworkStatus;
@@ -73,5 +87,16 @@
 - (void)handleRefreshButton:(id)sender;
 - (void)handleSettingsButton:(id)sender;
 - (void)handleThemeButton:(id)sender;
+
+// New methods
+- (void)updateMemoryUsage;
+- (void)updateNetworkThroughput;
+- (void)updateCPUTemperature;
+- (void)saveSettings;
+- (void)loadSettings;
+
+- (void)toggleCompactMode;
+
+- (void)showSettingsDialog;
 
 @end

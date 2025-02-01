@@ -15,15 +15,13 @@
     [window setBackgroundColor:[NSColor clearColor]];
     [window setOpaque:NO];
     [window setLevel:CGWindowLevelForKey(kCGAssistiveTechHighWindowLevel)];
-    
-    // Важно: изменяем порядок установки свойств окна
+
     [window setIgnoresMouseEvents:YES];
     [window setAcceptsMouseMovedEvents:YES];
     [window setMovable:NO];
     [window setMovableByWindowBackground:NO];
     [window setSharingType:NSWindowSharingNone];
-    
-    // Добавляем флаг, чтобы окно пропускало клики
+
     [window setAlphaValue:1.0];
     [window setOpaque:NO];
     [window setHasShadow:NO];
@@ -52,10 +50,7 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
-    // Удаляем вызов регистрации горячих клавиш
 }
-
-// Удаляем метод registerKeyboardShortcuts и связанные с ним методы
 
 - (void)refreshAllData {
     OverlayView *view = (OverlayView *)[self.window contentView];
