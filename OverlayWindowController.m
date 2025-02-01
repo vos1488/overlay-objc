@@ -50,6 +50,8 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
+    // Set the overlayView property by casting the window contentView
+    self.overlayView = (OverlayView *)self.window.contentView;
 }
 
 - (void)refreshAllData {
@@ -58,6 +60,11 @@
     [view updateBatteryInfo];
     [view updateIPAddresses];
     [view updateNetworkStatus];
+}
+
+- (void)handleCompactModeButton:(id)sender {
+    // Toggle compact mode on the overlay view and request a redraw
+    [self.overlayView toggleCompactMode];
 }
 
 @end

@@ -10,8 +10,17 @@
 }
 @end
 
-int main(int __attribute__((unused)) argc, const char * __attribute__((unused)) argv[]) {
+int main(int argc, const char * argv[]) {
     @autoreleasepool {
+        // Check command-line arguments for compact mode flag
+        BOOL compactMode = NO;
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--compact") == 0) {
+                compactMode = YES;
+                break;
+            }
+        }
+        
         NSApplication *application = [NSApplication sharedApplication];
         
         // Правильная загрузка иконки
@@ -25,6 +34,9 @@ int main(int __attribute__((unused)) argc, const char * __attribute__((unused)) 
         [application setDelegate:delegate];
         
         OverlayWindowController *windowController = [[OverlayWindowController alloc] init];
+        if (compactMode) {
+            [windowController.overlayView toggleCompactMode];
+        }
         [windowController showWindow:nil];
         
         [application run];

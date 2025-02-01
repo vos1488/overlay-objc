@@ -61,6 +61,11 @@ make release
 - Анимированное появление/скрытие
 - Выбор даты кликом
 
+## Compact Mode
+
+The project now supports a compact mode which displays a minimal UI.
+You can toggle compact mode via the settings button, a dedicated compact mode button, or by launching with the `--compact` flag.
+
 ## Технические детали
 
 ### Архитектура
