@@ -1,0 +1,151 @@
+// Методы для настройки вкладок настроек
+
+- (void)setupDisplaySettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    // Заголовок секции
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Внешний вид"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setSelectable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    // Компактный режим
+    NSButton *compactModeButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [compactModeButton setButtonType:NSButtonTypeSwitch];
+    [compactModeButton setTitle:@"Компактный режим"];
+    [compactModeButton setState:self.isCompactMode ? NSControlStateValueOn : NSControlStateValueOff];
+    [compactModeButton setTag:1001];
+    [view addSubview:compactModeButton];
+    yPos -= spacing;
+    
+    // Темная тема
+    NSButton *darkThemeButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [darkThemeButton setButtonType:NSButtonTypeSwitch];
+    [darkThemeButton setTitle:@"Темная тема"];
+    [darkThemeButton setState:self.isDarkTheme ? NSControlStateValueOn : NSControlStateValueOff];
+    [darkThemeButton setTag:1002];
+    [view addSubview:darkThemeButton];
+    yPos -= spacing;
+    
+    // Прозрачность
+    NSTextField *opacityLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos + 5, 150, 20)];
+    [opacityLabel setStringValue:@"Прозрачность:"];
+    [opacityLabel setBezeled:NO];
+    [opacityLabel setDrawsBackground:NO];
+    [opacityLabel setEditable:NO];
+    [view addSubview:opacityLabel];
+    
+    NSSlider *opacitySlider = [[NSSlider alloc] initWithFrame:NSMakeRect(180, yPos, 200, 25)];
+    [opacitySlider setMinValue:0.01];
+    [opacitySlider setMaxValue:1.0];
+    [opacitySlider setDoubleValue:self.opacity];
+    [opacitySlider setTag:2001];
+    [view addSubview:opacitySlider];
+    
+    NSTextField *opacityValue = [[NSTextField alloc] initWithFrame:NSMakeRect(390, yPos + 3, 50, 20)];
+    [opacityValue setStringValue:[NSString stringWithFormat:@"%.0f%%", self.opacity * 100]];
+    [opacityValue setBezeled:NO];
+    [opacityValue setDrawsBackground:NO];
+    [opacityValue setEditable:NO];
+    [opacityValue setTag:3001];
+    [view addSubview:opacityValue];
+}
+
+- (void)setupSystemSettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Системная информация"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    NSButton *networkInfoButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 250, 25)];
+    [networkInfoButton setButtonType:NSButtonTypeSwitch];
+    [networkInfoButton setTitle:@"Показывать сетевую информацию"];
+    [networkInfoButton setState:self.showNetworkInfo ? NSControlStateValueOn : NSControlStateValueOff];
+    [networkInfoButton setTag:1004];
+    [view addSubview:networkInfoButton];
+    yPos -= spacing;
+    
+    NSButton *systemInfoButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 250, 25)];
+    [systemInfoButton setButtonType:NSButtonTypeSwitch];
+    [systemInfoButton setTitle:@"Показывать системную информацию"];
+    [systemInfoButton setState:self.showSystemInfo ? NSControlStateValueOn : NSControlStateValueOff];
+    [systemInfoButton setTag:1005];
+    [view addSubview:systemInfoButton];
+}
+
+- (void)setupTimeSettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Настройки времени"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    NSButton *timeFormatButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [timeFormatButton setButtonType:NSButtonTypeSwitch];
+    [timeFormatButton setTitle:@"24-часовой формат"];
+    [timeFormatButton setState:self.is24HourFormat ? NSControlStateValueOn : NSControlStateValueOff];
+    [timeFormatButton setTag:1006];
+    [view addSubview:timeFormatButton];
+    yPos -= spacing;
+    
+    NSButton *showSecondsButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [showSecondsButton setButtonType:NSButtonTypeSwitch];
+    [showSecondsButton setTitle:@"Показывать секунды"];
+    [showSecondsButton setState:self.showSeconds ? NSControlStateValueOn : NSControlStateValueOff];
+    [showSecondsButton setTag:1007];
+    [view addSubview:showSecondsButton];
+}
+
+- (void)setupAdvancedSettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Дополнительно"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    NSButton *exportButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 120, 30)];
+    [exportButton setTitle:@"📤 Экспорт"];
+    [exportButton setTarget:self];
+    [exportButton setAction:@selector(exportSettings)];
+    [view addSubview:exportButton];
+    
+    NSButton *importButton = [[NSButton alloc] initWithFrame:NSMakeRect(150, yPos, 120, 30)];
+    [importButton setTitle:@"📥 Импорт"];
+    [importButton setTarget:self];
+    [importButton setAction:@selector(importSettings)];
+    [view addSubview:importButton];
+    yPos -= spacing + 10;
+    
+    NSTextField *versionInfo = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 20)];
+    [versionInfo setStringValue:@"Overlay v1.0.3 - © 2025 vos9.su"];
+    [versionInfo setBezeled:NO];
+    [versionInfo setDrawsBackground:NO];
+    [versionInfo setEditable:NO];
+    [versionInfo setFont:[NSFont systemFontOfSize:12]];
+    [view addSubview:versionInfo];
+}

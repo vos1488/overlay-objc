@@ -56,6 +56,17 @@
 
 @property (strong, nonatomic) NSButton *settingsButton;
 
+// Settings window properties
+@property (strong, nonatomic) NSWindow *settingsWindow;
+@property (strong, nonatomic) NSWindowController *settingsWindowController;
+@property (assign, nonatomic) BOOL showSecondsInTime;
+@property (assign, nonatomic) NSInteger updateInterval;
+@property (assign, nonatomic) BOOL showNetworkInfo;
+@property (assign, nonatomic) BOOL showSystemInfo;
+@property (assign, nonatomic) BOOL showCalendarByDefault;
+@property (assign, nonatomic) CGFloat backgroundOpacity;
+@property (assign, nonatomic) NSInteger refreshRate;
+
 - (void)toggleTimeFormat;
 - (void)updateNetworkStatus;
 - (void)increaseOpacity;
@@ -98,5 +109,17 @@
 - (void)toggleCompactMode;
 
 - (void)showSettingsDialog;
+
+// New rendering methods
+- (void)drawCompactMode;
+- (void)drawFullMode;
+
+// Advanced settings methods
+- (void)showAdvancedSettingsWindow;
+- (void)createSettingsWindow;
+- (void)applySettings;
+- (void)resetSettingsToDefaults;
+- (void)exportSettings;
+- (void)importSettings;
 
 @end

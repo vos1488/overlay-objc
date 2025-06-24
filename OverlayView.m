@@ -98,6 +98,14 @@ static CPUInfo cpuInfo = {0};
         self.opacity = 0.05;
         self.fontSize = 24;
         self.networkStatus = @"";
+        self.isCompactMode = NO;  // По умолчанию полный режим
+        
+        // Initialize settings properties
+        self.showNetworkInfo = YES;
+        self.showSystemInfo = YES;
+        self.showCalendarByDefault = NO;
+        self.refreshRate = 1;
+        self.backgroundOpacity = 0.05;
         
         // Register for notifications
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -177,6 +185,9 @@ static CPUInfo cpuInfo = {0};
                                                                 userInfo:nil
                                                                  repeats:YES];
         [[NSRunLoop currentRunLoop] addTimer:self.memoryUpdateTimer forMode:NSRunLoopCommonModes];
+        
+        // Load saved settings
+        [self loadSettings];
     }
     return self;
 }
@@ -190,14 +201,28 @@ static CPUInfo cpuInfo = {0};
     // Сдвигаем все кнопки правее, начиная с правого края
     CGFloat rightEdge = frame.size.width - 30;
     
-    // Close button (самая правая)
-    self.closeButton.frame = NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize);
+    // Close button (самая правая) - всегда видна
+    if (!self.closeButton) {
+        self.closeButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
+                                               title:@"✕"
+                                             action:@selector(closeButtonClicked:)];
+    } else {
+        self.closeButton.frame = NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize);
+    }
     
-    // Settings button
+    // Settings button - скрывается в компактном режиме
     rightEdge -= spacing;
-    self.settingsButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
-                                              title:@"S"
-                                            action:@selector(handleSettingsButton:)];
+    if (!self.settingsButton) {
+        self.settingsButton = [self createButtonWithFrame:NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize)
+                                                   title:@"⚙"
+                                                 action:@selector(handleSettingsButton:)];
+    } else {
+        self.settingsButton.frame = NSMakeRect(rightEdge, topMargin, buttonSize, buttonSize);
+    }
+    
+    // Устанавливаем видимость кнопок в зависимости от режима
+    self.closeButton.hidden = NO;  // Кнопка закрытия всегда видна
+    self.settingsButton.hidden = self.isCompactMode;  // Настройки скрыты в компактном режиме
     
     // Add tracking areas for all buttons after creating them
     [self updateTrackingAreas];
@@ -239,49 +264,91 @@ static CPUInfo cpuInfo = {0};
 }
 
 - (void)showSettingsDialog {
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Settings";
-    alert.informativeText = @"Configure overlay settings";
-    
-    NSButton *timeFormatButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
-    [timeFormatButton setButtonType:NSButtonTypeSwitch];
-    [timeFormatButton setTitle:@"24-Hour Format"];
-    [timeFormatButton setState:self.is24HourFormat ? NSControlStateValueOn : NSControlStateValueOff];
-    [timeFormatButton setTarget:self];
-    [timeFormatButton setAction:@selector(toggleTimeFormat)];
-    
-    NSButton *compactModeButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
-    [compactModeButton setButtonType:NSButtonTypeSwitch];
-    [compactModeButton setTitle:@"Compact Mode"];
-    [compactModeButton setState:self.isCompactMode ? NSControlStateValueOn : NSControlStateValueOff];
-    [compactModeButton setTarget:self];
-    [compactModeButton setAction:@selector(toggleCompactMode)];
-    
-    NSButton *themeButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
-    [themeButton setButtonType:NSButtonTypeSwitch];
-    [themeButton setTitle:@"Dark Theme"];
-    [themeButton setState:self.isDarkTheme ? NSControlStateValueOn : NSControlStateValueOff];
-    [themeButton setTarget:self];
-    [themeButton setAction:@selector(handleThemeButton:)];
-    
-    NSView *accessoryView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 200, 100)];
-    [accessoryView addSubview:timeFormatButton];
-    [accessoryView addSubview:compactModeButton];
-    [accessoryView addSubview:themeButton];
-    
-    [timeFormatButton setFrameOrigin:NSMakePoint(10, 60)];
-    [compactModeButton setFrameOrigin:NSMakePoint(10, 30)];
-    [themeButton setFrameOrigin:NSMakePoint(10, 0)];
-    
-    [alert setAccessoryView:accessoryView];
-    
-    [alert addButtonWithTitle:@"Save"];
-    [alert addButtonWithTitle:@"Close"];
-    
-    NSInteger response = [alert runModal];
-    if (response == NSAlertFirstButtonReturn) {
-        [self saveSettings];
+    [self showAdvancedSettingsWindow];
+}
+
+- (void)showAdvancedSettingsWindow {
+    if (!self.settingsWindow) {
+        [self createSettingsWindow];
     }
+    
+    [self.settingsWindow makeKeyAndOrderFront:nil];
+    [self.settingsWindow center];
+    [NSApp activateIgnoringOtherApps:YES];
+}
+
+- (void)createSettingsWindow {
+    // Создаем окно настроек
+    NSRect windowFrame = NSMakeRect(0, 0, 500, 600);
+    self.settingsWindow = [[NSWindow alloc] initWithContentRect:windowFrame
+                                                     styleMask:(NSWindowStyleMaskTitled | 
+                                                               NSWindowStyleMaskClosable | 
+                                                               NSWindowStyleMaskMiniaturizable)
+                                                       backing:NSBackingStoreBuffered
+                                                         defer:NO];
+    
+    [self.settingsWindow setTitle:@"Overlay Settings"];
+    [self.settingsWindow setReleasedWhenClosed:NO];
+    
+    // Создаем табы для группировки настроек
+    NSTabView *tabView = [[NSTabView alloc] initWithFrame:NSMakeRect(20, 20, 460, 520)];
+    [tabView setTabViewType:NSTopTabsBezelBorder];
+    
+    // Вкладка "Отображение"
+    NSTabViewItem *displayTab = [[NSTabViewItem alloc] initWithIdentifier:@"display"];
+    [displayTab setLabel:@"🎨 Отображение"];
+    NSView *displayView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 460, 490)];
+    [self setupDisplaySettings:displayView];
+    [displayTab setView:displayView];
+    [tabView addTabViewItem:displayTab];
+    
+    // Вкладка "Система"
+    NSTabViewItem *systemTab = [[NSTabViewItem alloc] initWithIdentifier:@"system"];
+    [systemTab setLabel:@"⚙️ Система"];
+    NSView *systemView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 460, 490)];
+    [self setupSystemSettings:systemView];
+    [systemTab setView:systemView];
+    [tabView addTabViewItem:systemTab];
+    
+    // Вкладка "Время"
+    NSTabViewItem *timeTab = [[NSTabViewItem alloc] initWithIdentifier:@"time"];
+    [timeTab setLabel:@"🕒 Время"];
+    NSView *timeView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 460, 490)];
+    [self setupTimeSettings:timeView];
+    [timeTab setView:timeView];
+    [tabView addTabViewItem:timeTab];
+    
+    // Вкладка "Дополнительно"
+    NSTabViewItem *advancedTab = [[NSTabViewItem alloc] initWithIdentifier:@"advanced"];
+    [advancedTab setLabel:@"🔧 Дополнительно"];
+    NSView *advancedView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 460, 490)];
+    [self setupAdvancedSettings:advancedView];
+    [advancedTab setView:advancedView];
+    [tabView addTabViewItem:advancedTab];
+    
+    // Кнопки управления
+    NSButton *saveButton = [[NSButton alloc] initWithFrame:NSMakeRect(300, 550, 80, 30)];
+    [saveButton setTitle:@"💾 Сохранить"];
+    [saveButton setTarget:self];
+    [saveButton setAction:@selector(applySettings)];
+    [saveButton setKeyEquivalent:@"\r"];
+    
+    NSButton *cancelButton = [[NSButton alloc] initWithFrame:NSMakeRect(390, 550, 80, 30)];
+    [cancelButton setTitle:@"❌ Отмена"];
+    [cancelButton setTarget:self];
+    [cancelButton setAction:@selector(closeSettingsWindow:)];
+    [cancelButton setKeyEquivalent:@"\033"];
+    
+    NSButton *resetButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, 550, 120, 30)];
+    [resetButton setTitle:@"🔄 Сбросить"];
+    [resetButton setTarget:self];
+    [resetButton setAction:@selector(resetSettingsToDefaults)];
+    
+    // Добавляем элементы в окно
+    [[self.settingsWindow contentView] addSubview:tabView];
+    [[self.settingsWindow contentView] addSubview:saveButton];
+    [[self.settingsWindow contentView] addSubview:cancelButton];
+    [[self.settingsWindow contentView] addSubview:resetButton];
 }
 
 - (void)startTimer {
@@ -539,6 +606,84 @@ static CPUInfo cpuInfo = {0};
         return;
     }
     
+    [super drawRect:dirtyRect];
+    
+    // Прозрачный фон
+    [[NSColor colorWithCalibratedRed:0.0 green:0.0 blue:0.0 alpha:self.opacity] set];
+    NSRectFill(dirtyRect);
+    
+    // Проверяем режим отображения
+    if (self.isCompactMode) {
+        [self drawCompactMode];
+    } else {
+        [self drawFullMode];
+    }
+    
+    // Календарь отображается в любом режиме
+    if (self.showCalendar) {
+        [self drawCalendar];
+    }
+    
+    self.needsFullRedraw = NO;
+    self.dirtyRect = dirtyRect;
+}
+
+- (void)drawCompactMode {
+    // Компактный режим - минимальная информация в одной строке в верхней части экрана
+    CGFloat topMargin = 20;
+    CGFloat compactHeight = 30;
+    CGFloat leftPadding = 20;
+    CGFloat rightPadding = 20;
+    
+    // Создаем полупрозрачную панель для компактного режима
+    NSRect compactRect = NSMakeRect(leftPadding, 
+                                   NSHeight(self.bounds) - topMargin - compactHeight,
+                                   NSWidth(self.bounds) - leftPadding - rightPadding,
+                                   compactHeight);
+    
+    // Фон панели с округлыми углами
+    NSBezierPath *compactPath = [NSBezierPath bezierPathWithRoundedRect:compactRect xRadius:15 yRadius:15];
+    [[NSColor colorWithCalibratedWhite:0.0 alpha:0.3] set];
+    [compactPath fill];
+    
+    // Рамка панели
+    [[NSColor colorWithCalibratedWhite:1.0 alpha:0.2] set];
+    [compactPath setLineWidth:1.0];
+    [compactPath stroke];
+    
+    // Форматируем компактную информацию
+    NSString *timeText = self.currentTime ?: @"--:--";
+    NSString *batteryText = [NSString stringWithFormat:@"🔋%.0f%%", self.batteryLevel * 100];
+    NSString *memoryText = [NSString stringWithFormat:@"💾%.1fGB", self.memoryUsage / 1024.0];
+    NSString *cpuText = [NSString stringWithFormat:@"⚡%.0f%%", self.cpuUsage];
+    
+    // Собираем все в одну строку
+    NSString *compactInfo = [NSString stringWithFormat:@"%@ • %@ • %@ • %@", 
+                            timeText, batteryText, memoryText, cpuText];
+    
+    // Атрибуты текста
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:14 weight:NSFontWeightMedium],
+        NSForegroundColorAttributeName: [NSColor whiteColor]
+    };
+    
+    // Центрируем текст в панели
+    NSSize textSize = [compactInfo sizeWithAttributes:attrs];
+    CGFloat textX = compactRect.origin.x + (compactRect.size.width - textSize.width) / 2.0;
+    CGFloat textY = compactRect.origin.y + (compactRect.size.height - textSize.height) / 2.0;
+    
+    [compactInfo drawAtPoint:NSMakePoint(textX, textY) withAttributes:attrs];
+    
+    // Добавляем индикатор активности в правом углу
+    NSRect activityRect = NSMakeRect(NSWidth(self.bounds) - 35, 
+                                    NSHeight(self.bounds) - 35, 
+                                    10, 10);
+    NSBezierPath *activityPath = [NSBezierPath bezierPathWithOvalInRect:activityRect];
+    [[NSColor colorWithRed:0.0 green:0.8 blue:0.2 alpha:0.8] set];
+    [activityPath fill];
+}
+
+- (void)drawFullMode {
     // Кэшируем часто используемые значения
     static NSFont *timeFont = nil;
     static NSFont *statusFont = nil;
@@ -546,11 +691,6 @@ static CPUInfo cpuInfo = {0};
         timeFont = [NSFont fontWithName:@"Helvetica" size:self.fontSize];
         statusFont = [NSFont fontWithName:@"Helvetica" size:16];
     }
-    
-    [super drawRect:dirtyRect];
-    
-    [[NSColor colorWithCalibratedRed:0.0 green:0.0 blue:0.0 alpha:self.opacity] set];
-    NSRectFill(dirtyRect);
     
     NSMutableDictionary *attrs = [NSMutableDictionary dictionary];
     [attrs setObject:timeFont forKey:NSFontAttributeName];
@@ -616,32 +756,6 @@ static CPUInfo cpuInfo = {0};
     [attrs setObject:[NSFont fontWithName:@"Helvetica" size:12] forKey:NSFontAttributeName];
     [attrs setObject:[NSColor colorWithCalibratedWhite:1.0 alpha:0.5] forKey:NSForegroundColorAttributeName];
     [authorText drawAtPoint:authorPoint withAttributes:attrs];
-    
-    if (self.showCalendar) {
-        [self drawCalendar];
-    }
-    
-    self.needsFullRedraw = NO;
-    self.dirtyRect = dirtyRect;
-
-    // Center top content for compact mode
-    if (self.isCompactMode) {
-        // Style: minimal, centered at the top
-        // Example of drawing fewer metrics in a smaller area
-        NSString *compactText = [NSString stringWithFormat:@"%@ | CPU: %.0f%% | Mem: %.1fMB",
-                                 self.currentTime ?: @"--:--",
-                                 self.cpuUsage,
-                                 self.memoryUsage];
-        NSDictionary *compactAttrs = @{ NSFontAttributeName: [NSFont systemFontOfSize:14],
-                                        NSForegroundColorAttributeName: [NSColor whiteColor] };
-        NSSize textSize = [compactText sizeWithAttributes:compactAttrs];
-        CGFloat x = (NSWidth(self.bounds) - textSize.width) / 2.0;
-        CGFloat y = NSHeight(self.bounds) - 22;
-        [compactText drawAtPoint:NSMakePoint(x, y) withAttributes:compactAttrs];
-    } else {
-        // Full mode: existing layout with detailed metrics
-        // Remove the call to super drawRect here to avoid double drawing
-    }
 }
 
 - (void)drawCalendar {
@@ -1077,6 +1191,7 @@ static CPUInfo cpuInfo = {0};
     self.networkUpdateTimer = nil;
     [self.memoryUpdateTimer invalidate];
     self.memoryUpdateTimer = nil;
+    // Note: [super dealloc] not needed with ARC
 }
 
 - (void)suspendUpdates {
@@ -1348,7 +1463,14 @@ static CPUInfo cpuInfo = {0};
         @"opacity": @(self.opacity),
         @"is24HourFormat": @(self.is24HourFormat),
         @"showSeconds": @(self.showSeconds),
-        @"isDarkTheme": @(self.isDarkTheme)
+        @"isDarkTheme": @(self.isDarkTheme),
+        @"isCompactMode": @(self.isCompactMode),
+        @"fontSize": @(self.fontSize),
+        @"showNetworkInfo": @(self.showNetworkInfo),
+        @"showSystemInfo": @(self.showSystemInfo),
+        @"showCalendarByDefault": @(self.showCalendarByDefault),
+        @"refreshRate": @(self.refreshRate),
+        @"backgroundOpacity": @(self.backgroundOpacity)
     };
     
     [settings writeToFile:settingsPath atomically:YES];
@@ -1360,17 +1482,366 @@ static CPUInfo cpuInfo = {0};
     NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
     
     if (settings) {
-        self.opacity = [settings[@"opacity"] doubleValue];
+        self.opacity = [settings[@"opacity"] doubleValue] ?: 0.05;
         self.is24HourFormat = [settings[@"is24HourFormat"] boolValue];
         self.showSeconds = [settings[@"showSeconds"] boolValue];
         self.isDarkTheme = [settings[@"isDarkTheme"] boolValue];
+        self.isCompactMode = [settings[@"isCompactMode"] boolValue];
+        self.fontSize = [settings[@"fontSize"] integerValue] ?: 24;
+        self.showNetworkInfo = [settings[@"showNetworkInfo"] boolValue];
+        self.showSystemInfo = [settings[@"showSystemInfo"] boolValue];
+        self.showCalendarByDefault = [settings[@"showCalendarByDefault"] boolValue];
+        self.refreshRate = [settings[@"refreshRate"] integerValue] ?: 1;
+        self.backgroundOpacity = [settings[@"backgroundOpacity"] doubleValue] ?: 0.05;
         [self setNeedsDisplay:YES];
     }
 }
 
 - (void)toggleCompactMode {
     self.isCompactMode = !self.isCompactMode;
+    
+    // Скрываем/показываем кнопки управления в зависимости от режима
+    if (self.isCompactMode) {
+        // В компактном режиме скрываем все кнопки кроме основных
+        self.closeButton.hidden = NO;  // Кнопка закрытия всегда видна
+        self.settingsButton.hidden = YES;  // Скрываем настройки в компактном режиме
+    } else {
+        // В полном режиме показываем все кнопки
+        self.closeButton.hidden = NO;
+        self.settingsButton.hidden = NO;
+    }
+    
+    // Сохраняем настройку
+    [self saveSettings];
+    
+    // Принудительно перерисовываем весь экран
+    self.needsFullRedraw = YES;
     [self setNeedsDisplay:YES];
+    
+    NSLog(@"Compact mode toggled: %@", self.isCompactMode ? @"ON" : @"OFF");
+}
+
+- (void)setupDisplaySettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    // Заголовок секции
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Внешний вид"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setSelectable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    // Компактный режим
+    NSButton *compactModeButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [compactModeButton setButtonType:NSButtonTypeSwitch];
+    [compactModeButton setTitle:@"Компактный режим"];
+    [compactModeButton setState:self.isCompactMode ? NSControlStateValueOn : NSControlStateValueOff];
+    [compactModeButton setTag:1001];
+    [view addSubview:compactModeButton];
+    yPos -= spacing;
+    
+    // Темная тема
+    NSButton *darkThemeButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [darkThemeButton setButtonType:NSButtonTypeSwitch];
+    [darkThemeButton setTitle:@"Темная тема"];
+    [darkThemeButton setState:self.isDarkTheme ? NSControlStateValueOn : NSControlStateValueOff];
+    [darkThemeButton setTag:1002];
+    [view addSubview:darkThemeButton];
+    yPos -= spacing;
+    
+    // Прозрачность
+    NSTextField *opacityLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos + 5, 150, 20)];
+    [opacityLabel setStringValue:@"Прозрачность:"];
+    [opacityLabel setBezeled:NO];
+    [opacityLabel setDrawsBackground:NO];
+    [opacityLabel setEditable:NO];
+    [view addSubview:opacityLabel];
+    
+    NSSlider *opacitySlider = [[NSSlider alloc] initWithFrame:NSMakeRect(180, yPos, 200, 25)];
+    [opacitySlider setMinValue:0.01];
+    [opacitySlider setMaxValue:1.0];
+    [opacitySlider setDoubleValue:self.opacity];
+    [opacitySlider setTag:2001];
+    [view addSubview:opacitySlider];
+    
+    NSTextField *opacityValue = [[NSTextField alloc] initWithFrame:NSMakeRect(390, yPos + 3, 50, 20)];
+    [opacityValue setStringValue:[NSString stringWithFormat:@"%.0f%%", self.opacity * 100]];
+    [opacityValue setBezeled:NO];
+    [opacityValue setDrawsBackground:NO];
+    [opacityValue setEditable:NO];
+    [opacityValue setTag:3001];
+    [view addSubview:opacityValue];
+}
+
+- (void)setupSystemSettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Системная информация"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    NSButton *networkInfoButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 250, 25)];
+    [networkInfoButton setButtonType:NSButtonTypeSwitch];
+    [networkInfoButton setTitle:@"Показывать сетевую информацию"];
+    [networkInfoButton setState:self.showNetworkInfo ? NSControlStateValueOn : NSControlStateValueOff];
+    [networkInfoButton setTag:1004];
+    [view addSubview:networkInfoButton];
+    yPos -= spacing;
+    
+    NSButton *systemInfoButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 250, 25)];
+    [systemInfoButton setButtonType:NSButtonTypeSwitch];
+    [systemInfoButton setTitle:@"Показывать системную информацию"];
+    [systemInfoButton setState:self.showSystemInfo ? NSControlStateValueOn : NSControlStateValueOff];
+    [systemInfoButton setTag:1005];
+    [view addSubview:systemInfoButton];
+}
+
+- (void)setupTimeSettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Настройки времени"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    NSButton *timeFormatButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [timeFormatButton setButtonType:NSButtonTypeSwitch];
+    [timeFormatButton setTitle:@"24-часовой формат"];
+    [timeFormatButton setState:self.is24HourFormat ? NSControlStateValueOn : NSControlStateValueOff];
+    [timeFormatButton setTag:1006];
+    [view addSubview:timeFormatButton];
+    yPos -= spacing;
+    
+    NSButton *showSecondsButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 200, 25)];
+    [showSecondsButton setButtonType:NSButtonTypeSwitch];
+    [showSecondsButton setTitle:@"Показывать секунды"];
+    [showSecondsButton setState:self.showSeconds ? NSControlStateValueOn : NSControlStateValueOff];
+    [showSecondsButton setTag:1007];
+    [view addSubview:showSecondsButton];
+}
+
+- (void)setupAdvancedSettings:(NSView *)view {
+    CGFloat yPos = 420;
+    CGFloat spacing = 40;
+    
+    NSTextField *sectionTitle = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 25)];
+    [sectionTitle setStringValue:@"Дополнительно"];
+    [sectionTitle setBezeled:NO];
+    [sectionTitle setDrawsBackground:NO];
+    [sectionTitle setEditable:NO];
+    [sectionTitle setFont:[NSFont boldSystemFontOfSize:16]];
+    [view addSubview:sectionTitle];
+    yPos -= spacing;
+    
+    NSButton *exportButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, yPos, 120, 30)];
+    [exportButton setTitle:@"📤 Экспорт"];
+    [exportButton setTarget:self];
+    [exportButton setAction:@selector(exportSettings)];
+    [view addSubview:exportButton];
+    
+    NSButton *importButton = [[NSButton alloc] initWithFrame:NSMakeRect(150, yPos, 120, 30)];
+    [importButton setTitle:@"📥 Импорт"];
+    [importButton setTarget:self];
+    [importButton setAction:@selector(importSettings)];
+    [view addSubview:importButton];
+    yPos -= spacing + 10;
+    
+    NSTextField *versionInfo = [[NSTextField alloc] initWithFrame:NSMakeRect(20, yPos, 400, 20)];
+    [versionInfo setStringValue:@"Overlay v1.0.3 - © 2025 vos9.su"];
+    [versionInfo setBezeled:NO];
+    [versionInfo setDrawsBackground:NO];
+    [versionInfo setEditable:NO];
+    [versionInfo setFont:[NSFont systemFontOfSize:12]];
+    [view addSubview:versionInfo];
+}
+
+- (void)closeSettingsWindow:(id)sender {
+    [self.settingsWindow close];
+}
+
+- (void)applySettings {
+    // Получаем все элементы управления и применяем их значения
+    NSArray *allSubviews = [self getAllSubviewsFromWindow:self.settingsWindow];
+    
+    for (NSView *view in allSubviews) {
+        if ([view isKindOfClass:[NSButton class]]) {
+            NSButton *button = (NSButton *)view;
+            if ([button respondsToSelector:@selector(state)] && button.tag >= 1001 && button.tag <= 1007) {
+                switch (button.tag) {
+                    case 1001: // Компактный режим
+                        if (self.isCompactMode != (button.state == NSControlStateValueOn)) {
+                            [self toggleCompactMode];
+                        }
+                        break;
+                    case 1002: // Темная тема
+                        self.isDarkTheme = (button.state == NSControlStateValueOn);
+                        break;
+                    case 1004: // Сетевая информация
+                        self.showNetworkInfo = (button.state == NSControlStateValueOn);
+                        break;
+                    case 1005: // Системная информация
+                        self.showSystemInfo = (button.state == NSControlStateValueOn);
+                        break;
+                    case 1006: // 24-часовой формат
+                        self.is24HourFormat = (button.state == NSControlStateValueOn);
+                        break;
+                    case 1007: // Показывать секунды
+                        self.showSeconds = (button.state == NSControlStateValueOn);
+                        break;
+                }
+            }
+        } else if ([view isKindOfClass:[NSSlider class]]) {
+            NSSlider *slider = (NSSlider *)view;
+            switch (slider.tag) {
+                case 2001: // Прозрачность
+                    self.opacity = slider.doubleValue;
+                    break;
+            }
+        }
+    }
+    
+    [self saveSettings];
+    [self setNeedsDisplay:YES];
+    [self.settingsWindow close];
+    
+    NSLog(@"Settings applied and saved");
+}
+
+- (NSArray *)getAllSubviewsFromWindow:(NSWindow *)window {
+    NSMutableArray *allSubviews = [NSMutableArray array];
+    [self addSubviewsToArray:allSubviews fromView:window.contentView];
+    return allSubviews;
+}
+
+- (void)addSubviewsToArray:(NSMutableArray *)array fromView:(NSView *)view {
+    [array addObject:view];
+    for (NSView *subview in view.subviews) {
+        [self addSubviewsToArray:array fromView:subview];
+    }
+}
+
+- (void)resetSettingsToDefaults {
+    NSAlert *confirmAlert = [[NSAlert alloc] init];
+    [confirmAlert setMessageText:@"Сбросить настройки"];
+    [confirmAlert setInformativeText:@"Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?"];
+    [confirmAlert addButtonWithTitle:@"Сбросить"];
+    [confirmAlert addButtonWithTitle:@"Отмена"];
+    [confirmAlert setAlertStyle:NSAlertStyleWarning];
+    
+    NSInteger response = [confirmAlert runModal];
+    if (response == NSAlertFirstButtonReturn) {
+        // Сбрасываем к значениям по умолчанию
+        self.isCompactMode = NO;
+        self.isDarkTheme = YES;
+        self.is24HourFormat = YES;
+        self.showSeconds = YES;
+        self.opacity = 0.05;
+        self.fontSize = 24;
+        self.showNetworkInfo = YES;
+        self.showSystemInfo = YES;
+        self.showCalendarByDefault = NO;
+        self.refreshRate = 1;
+        
+        [self saveSettings];
+        [self setNeedsDisplay:YES];
+        [self.settingsWindow close];
+        
+        NSLog(@"Settings reset to defaults");
+    }
+}
+
+- (void)exportSettings {
+    NSSavePanel *savePanel = [NSSavePanel savePanel];
+    [savePanel setAllowedFileTypes:@[@"plist"]];
+    [savePanel setNameFieldStringValue:@"overlay_settings.plist"];
+    [savePanel setTitle:@"Экспорт настроек"];
+    
+    [savePanel beginWithCompletionHandler:^(NSInteger response) {
+        if (response == NSModalResponseOK) {
+            NSURL *url = [savePanel URL];
+            NSDictionary *settings = [self getCurrentSettings];
+            
+            NSError *error;
+            NSData *plistData = [NSPropertyListSerialization dataWithPropertyList:settings
+                                                                          format:NSPropertyListXMLFormat_v1_0
+                                                                         options:0
+                                                                           error:&error];
+            
+            if (plistData && !error) {
+                [plistData writeToURL:url atomically:YES];
+                NSLog(@"Settings exported to: %@", url.path);
+            } else {
+                NSLog(@"Failed to export settings: %@", error.localizedDescription);
+            }
+        }
+    }];
+}
+
+- (void)importSettings {
+    NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+    [openPanel setAllowedFileTypes:@[@"plist"]];
+    [openPanel setTitle:@"Импорт настроек"];
+    
+    [openPanel beginWithCompletionHandler:^(NSInteger response) {
+        if (response == NSModalResponseOK) {
+            NSURL *url = [openPanel URL];
+            NSDictionary *settings = [NSDictionary dictionaryWithContentsOfURL:url];
+            
+            if (settings) {
+                [self applyImportedSettings:settings];
+                [self saveSettings];
+                [self setNeedsDisplay:YES];
+                [self.settingsWindow close];
+                NSLog(@"Settings imported from: %@", url.path);
+            } else {
+                NSLog(@"Failed to import settings from: %@", url.path);
+            }
+        }
+    }];
+}
+
+- (NSDictionary *)getCurrentSettings {
+    return @{
+        @"opacity": @(self.opacity),
+        @"is24HourFormat": @(self.is24HourFormat),
+        @"showSeconds": @(self.showSeconds),
+        @"isDarkTheme": @(self.isDarkTheme),
+        @"isCompactMode": @(self.isCompactMode),
+        @"fontSize": @(self.fontSize),
+        @"showNetworkInfo": @(self.showNetworkInfo ?: YES),
+        @"showSystemInfo": @(self.showSystemInfo ?: YES),
+        @"showCalendarByDefault": @(self.showCalendarByDefault ?: NO),
+        @"refreshRate": @(self.refreshRate ?: 1)
+    };
+}
+
+- (void)applyImportedSettings:(NSDictionary *)settings {
+    if (settings[@"opacity"]) self.opacity = [settings[@"opacity"] doubleValue];
+    if (settings[@"is24HourFormat"]) self.is24HourFormat = [settings[@"is24HourFormat"] boolValue];
+    if (settings[@"showSeconds"]) self.showSeconds = [settings[@"showSeconds"] boolValue];
+    if (settings[@"isDarkTheme"]) self.isDarkTheme = [settings[@"isDarkTheme"] boolValue];
+    if (settings[@"isCompactMode"]) self.isCompactMode = [settings[@"isCompactMode"] boolValue];
+    if (settings[@"fontSize"]) self.fontSize = [settings[@"fontSize"] integerValue];
+    if (settings[@"showNetworkInfo"]) self.showNetworkInfo = [settings[@"showNetworkInfo"] boolValue];
+    if (settings[@"showSystemInfo"]) self.showSystemInfo = [settings[@"showSystemInfo"] boolValue];
+    if (settings[@"showCalendarByDefault"]) self.showCalendarByDefault = [settings[@"showCalendarByDefault"] boolValue];
+    if (settings[@"refreshRate"]) self.refreshRate = [settings[@"refreshRate"] integerValue];
 }
 
 @end
