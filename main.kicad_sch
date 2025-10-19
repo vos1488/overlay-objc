@@ -1,0 +1,15 @@
+(kicad_sch (version 20211014) (generator kicad)
+  (title "VAZ-2101 Raspberry Pi 5 Monitoring System")
+  (description "Main schematic for the VAZ-2101 Raspberry Pi 5 monitoring system with sensor connections.")
+  (components
+    (component (lib_id "Raspberry_Pi_5") (ref "U1") (value "Raspberry Pi 5"))
+    (component (lib_id "Temperature_Sensor") (ref "U2") (value "Temperature Sensor"))
+    (component (lib_id "Humidity_Sensor") (ref "U3") (value "Humidity Sensor"))
+    (component (lib_id "Voltage_Sensor") (ref "U4") (value "Voltage Sensor"))
+  )
+  (connections
+    (connection (from "U1" "GPIO_PIN_1") (to "U2" "DATA_PIN"))
+    (connection (from "U1" "GPIO_PIN_2") (to "U3" "DATA_PIN"))
+    (connection (from "U1" "GPIO_PIN_3") (to "U4" "DATA_PIN"))
+  )
+)
